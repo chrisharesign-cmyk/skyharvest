@@ -1031,7 +1031,7 @@ function RoadmapTab() {
         <div className="flex flex-wrap gap-6 justify-between items-start">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "#86b9d0" }}>Sky Harvest · Technology Roadmap</p>
-            <h2 className="text-2xl font-black mt-1">What Claude Code can build for your business</h2>
+            <h2 className="text-2xl font-black mt-1">Haresign Investments</h2>
             <p className="text-sm mt-2" style={{ color: "#a8cde0" }}>
               {builtItems} features built today as a proof of concept. {totalItems - builtItems} more identified below — from quick wins to a full business platform.
             </p>
@@ -1109,21 +1109,6 @@ function RoadmapTab() {
         </div>
       ))}
 
-      {/* CTA */}
-      <div className="rounded-2xl p-6 border" style={{ background: "#f0f6fb", borderColor: "#b8d0e0" }}>
-        <div className="flex flex-wrap gap-4 justify-between items-center">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest" style={{ color: C.skyBlue }}>Investment perspective</p>
-            <h3 className="text-lg font-black mt-1" style={{ color: "#1a2e3b" }}>What you see here took one session with Claude Code</h3>
-            <p className="text-sm mt-1.5 max-w-2xl" style={{ color: "#3a4e5c" }}>
-              The dashboard, crop weight report, pick list, and route planner are functional prototypes built from your actual harvest data in a single conversation.
-              The quick-win features (digital order entry, invoice generator, growing planner) each represent 1–3 days of focused development.
-              A full platform covering CRM, financials, route optimisation, and customer portal is realistic within 2–3 months.
-            </p>
-          </div>
-
-        </div>
-      </div>
     </div>
   );
 }
