@@ -1113,10 +1113,292 @@ function RoadmapTab() {
   );
 }
 
+
+// ── Tray Health Tab ────────────────────────────────────────────────────────────
+const CROPS_HEALTH = [
+  {name:"Pea Shoots",days:28},{name:"Sunflower Shoots",days:28},
+  {name:"Red Radish",days:21},{name:"White Radish",days:21},
+  {name:"Cilantro",days:28},{name:"Arugula",days:21},
+  {name:"Mellow Mix",days:28},{name:"Spicy Mix",days:28},
+  {name:"Radish Blend",days:21},{name:"Salad Boost",days:28},
+  {name:"Basil",days:21},{name:"Purple Basil",days:21},
+  {name:"Kale",days:28},{name:"Mustard",days:21},
+  {name:"Beets",days:28},{name:"Purple Cabbage",days:28},
+  {name:"Broccoli",days:21},{name:"Peppercress",days:21},
+  {name:"Sky Hearts",days:14},{name:"Shiso (Green)",days:28},
+  {name:"Shiso (Purple)",days:28},{name:"Amaranth",days:21},
+  {name:"Mint",days:28},{name:"Snap Peas",days:28},
+];
+
+function compressImage(file){
+  return new Promise(res=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const max=900,canvas=document.createElement('canvas');
+      let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const data=canvas.toDataURL('image/jpeg',0.82);
+      res({base64:data.split(',')[1],type:'image/jpeg',preview:data});
+    };
+    img.src=url;
+  });
+}
+
+function HealthGauge({score}){
+  const col=score>=80?C.leafGreen:score>=60?C.amber:C.rust;
+  const c=2*Math.PI*15.9,dash=(score/100)*c;
+  return(
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative w-20 h-20">
+        <svg viewBox="0 0 36 36" className="w-20 h-20" style={{transform:'rotate(-90deg)'}}>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e8eef2" strokeWidth="3.5"/>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke={col} strokeWidth="3.5"
+            strokeDasharray={`${dash} ${c}`} strokeLinecap="round"/>
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-black leading-none" style={{color:col}}>{score}</span>
+          <span className="text-xs text-slate-400">/100</span>
+        </div>
+      </div>
+      <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+        style={{background:score>=80?'#e8f6dc':score>=60?'#fef3dc':'#fde8e8',color:col}}>
+        {score>=80?'Excellent':score>=65?'Good':score>=45?'Fair':'Poor'}
+      </span>
+    </div>
+  );
+}
+
+function TrayHealthTab(){
+  const [photo,setPhoto]=useState(null);
+  const [photoData,setPhotoData]=useState(null);
+  const [crop,setCrop]=useState('Pea Shoots');
+  const [daysSince,setDaysSince]=useState(14);
+  const [loading,setLoading]=useState(false);
+  const [result,setResult]=useState(null);
+  const [error,setError]=useState(null);
+  const [history,setHistory]=useState([]);
+  const fileRef=useRef(null);
+
+  const totalDays=CROPS_HEALTH.find(c=>c.name===crop)?.days||21;
+  const pct=Math.round((daysSince/totalDays)*100);
+
+  const handleFile=useCallback(async(file)=>{
+    if(!file) return;
+    const {base64,preview}=await compressImage(file);
+    setPhoto(preview);setPhotoData(base64);setResult(null);setError(null);
+  },[]);
+
+  const analyse=async()=>{
+    if(!photoData) return;
+    setLoading(true);setError(null);setResult(null);
+    try{
+      const r=await fetch('/.netlify/functions/analyse',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({imageData:photoData,mediaType:'image/jpeg',crop,daysSince,totalDays})
+      });
+      const data=await r.json();
+      if(data.error) throw new Error(data.error);
+      setResult(data);
+      setHistory(prev=>[{crop,day:daysSince,result:data,thumb:photo,ts:new Date()},...prev].slice(0,6));
+    }catch(e){setError(e.message||'Analysis failed');}
+    setLoading(false);
+  };
+
+  return(
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Left — upload + controls */}
+        <div className="space-y-4">
+          <Card>
+            <SectionHead title="Tray Photo" sub="Step 1 — upload"/>
+            <div className="p-4">
+              {photo?(
+                <div className="relative rounded-xl overflow-hidden">
+                  <img src={photo} className="w-full h-56 object-cover" alt="Tray"/>
+                  <button onClick={()=>{setPhoto(null);setPhotoData(null);setResult(null);}}
+                    className="absolute top-2 right-2 w-7 h-7 bg-white rounded-full shadow flex items-center justify-center text-slate-500 text-xs hover:text-red-500 transition-colors">✕</button>
+                </div>
+              ):(
+                <button onClick={()=>fileRef.current?.click()}
+                  className="w-full h-44 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all"
+                  style={{borderColor:'#b8d0e0',background:'#f5f8fb'}}>
+                  <span className="text-4xl">📷</span>
+                  <p className="text-sm font-bold" style={{color:C.skyBlue}}>Tap to upload tray photo</p>
+                  <p className="text-xs text-slate-400">Top-down shot works best</p>
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={e=>e.target.files[0]&&handleFile(e.target.files[0])}/>
+            </div>
+          </Card>
+
+          <Card>
+            <SectionHead title="Crop Details" sub="Step 2"/>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-400 block mb-1.5">Crop</label>
+                <select value={crop} onChange={e=>{setCrop(e.target.value);setDaysSince(1);}}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm font-semibold appearance-none"
+                  style={{borderColor:'#c5d4de',color:'#1a2e3b',background:'#f5f8fb'}}>
+                  {CROPS_HEALTH.map(c=><option key={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-400 block mb-2">
+                  Days since planting —
+                  <span className="font-black ml-1" style={{color:C.skyBlue}}>Day {daysSince}</span>
+                  <span className="font-normal text-slate-400"> of {totalDays}</span>
+                </label>
+                <input type="range" min={1} max={totalDays} value={daysSince}
+                  onChange={e=>setDaysSince(Number(e.target.value))}
+                  className="w-full" style={{accentColor:C.skyBlue}}/>
+                <div className="w-full rounded-full h-1.5 mt-2" style={{background:'#e8eef2'}}>
+                  <div className="h-1.5 rounded-full transition-all"
+                    style={{width:`${pct}%`,background:pct>85?C.leafGreen:pct>50?C.skyBlue:'#94a3b8'}}/>
+                </div>
+                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>Planted</span>
+                  <span style={{color:pct>85?C.leafGreen:'inherit'}}>{pct>85?'🌿 Approaching harvest':pct>50?'Mid growth':'Early growth'}</span>
+                  <span>Harvest</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <button onClick={analyse} disabled={!photo||loading}
+            className="w-full py-4 rounded-2xl text-white font-black text-base transition-all"
+            style={{
+              background:photo&&!loading?`linear-gradient(135deg,${C.deepBlue},${C.midGreen})`:'#c5d4de',
+              cursor:photo&&!loading?'pointer':'not-allowed'
+            }}>
+            {loading?'🔬 Analysing...':'🔬 Analyse Tray'}
+          </button>
+
+          {error&&<div className="p-4 rounded-xl text-sm" style={{background:'#fff0f0',border:'1px solid #fcc',color:'#8b2020'}}>{error}</div>}
+        </div>
+
+        {/* Right — result */}
+        <div className="space-y-4">
+          {loading&&(
+            <Card className="p-8 flex flex-col items-center gap-3">
+              <div className="text-4xl">🌱</div>
+              <p className="text-sm font-bold" style={{color:C.skyBlue}}>Claude is examining your tray</p>
+              <p className="text-xs text-slate-400 text-center">Checking growth stage, health indicators and harvest readiness</p>
+            </Card>
+          )}
+
+          {!result&&!loading&&(
+            <Card className="p-8 flex flex-col items-center gap-3 text-center">
+              <span className="text-5xl">🔬</span>
+              <p className="text-sm font-bold text-slate-400">Upload a photo and hit Analyse</p>
+              <p className="text-xs text-slate-400 max-w-xs">Claude will assess health, detect problems, estimate days to harvest, and recommend actions</p>
+            </Card>
+          )}
+
+          {result&&!loading&&(()=>{
+            const col=result.health_score>=80?C.leafGreen:result.health_score>=60?C.amber:C.rust;
+            return(
+              <Card>
+                <div className="px-5 py-4 border-b flex items-start justify-between gap-3"
+                  style={{borderColor:'#eaeff3',background:result.pack_ready?'#f2faea':'#f5f8fb'}}>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold uppercase tracking-widest" style={{color:result.pack_ready?C.midGreen:C.skyBlue}}>
+                      {crop} · Day {daysSince}
+                    </p>
+                    <h3 className="text-lg font-black mt-0.5" style={{color:'#1a2e3b'}}>
+                      {result.pack_ready?'✅ Ready to harvest':result.days_to_harvest===1?'⏰ Harvest tomorrow':`🌱 ${result.days_to_harvest}d to harvest`}
+                    </h3>
+                    <p className="text-sm mt-0.5" style={{color:'#4a6070'}}>{result.yield_estimate}</p>
+                  </div>
+                  <HealthGauge score={result.health_score}/>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="p-3.5 rounded-xl" style={{background:'#f5f8fb'}}>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Observations</p>
+                    <p className="text-sm leading-relaxed" style={{color:'#3a4e5c'}}>{result.observations}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-xl" style={{background:'#f5f8fb'}}>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide">Stage</p>
+                      <p className="text-sm font-bold mt-1" style={{color:'#1a2e3b'}}>{result.stage}</p>
+                    </div>
+                    <div className="p-3 rounded-xl" style={{background:'#f5f8fb'}}>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide">Confidence</p>
+                      <p className="text-sm font-bold mt-1 capitalize" style={{color:result.harvest_confidence==='high'?C.midGreen:result.harvest_confidence==='medium'?C.amber:C.rust}}>
+                        {result.harvest_confidence}
+                      </p>
+                    </div>
+                  </div>
+                  {result.problems?.length>0?(
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{color:C.rust}}>Issues detected</p>
+                      {result.problems.map((p,i)=>(
+                        <div key={i} className="flex gap-2 p-2.5 rounded-lg text-sm mb-1.5"
+                          style={{background:'#fff5f5',border:'1px solid #fdd',color:'#7a2020'}}>
+                          <span>⚠</span><span>{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ):(
+                    <div className="flex gap-2 items-center p-2.5 rounded-lg text-sm"
+                      style={{background:'#f0f9ec',border:'1px solid #c8e8a8',color:'#2a5020'}}>
+                      <span>✓</span><span className="font-semibold">No issues detected</span>
+                    </div>
+                  )}
+                  {result.recommendations?.length>0&&(
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{color:C.midGreen}}>Recommended actions</p>
+                      {result.recommendations.map((r,i)=>(
+                        <div key={i} className="flex gap-2 p-2.5 rounded-lg text-sm mb-1.5"
+                          style={{background:'#f0f9ec',border:'1px solid #c8e8a8',color:'#2a5020'}}>
+                          <span className="font-black shrink-0">{i+1}</span><span>{r}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })()}
+
+          {history.length>0&&(
+            <Card>
+              <SectionHead title="Session History" sub="Recent analyses"/>
+              <div className="divide-y" style={{borderColor:'#eaeff3'}}>
+                {history.map((h,i)=>{
+                  const col=h.result.health_score>=80?C.leafGreen:h.result.health_score>=60?C.amber:C.rust;
+                  return(
+                    <div key={i} className="flex items-center gap-3 px-4 py-3">
+                      <img src={h.thumb} className="w-11 h-11 rounded-lg object-cover shrink-0" alt=""/>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate" style={{color:'#1a2e3b'}}>{h.crop}</p>
+                        <p className="text-xs text-slate-400">Day {h.day} · {h.result.pack_ready?'Ready ✅':`${h.result.days_to_harvest}d remaining`}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xl font-black" style={{color:col}}>{h.result.health_score}</p>
+                        <p className="text-xs" style={{color:col}}>{h.result.health_label}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function SkyHarvestApp(){
   const [tab,setTab]=useState("dashboard");
-  const tabs=[{id:"dashboard",label:"Dashboard"},{id:"report",label:"Harvest Report"},{id:"nextrun",label:"Next Run"},{id:"roadmap",label:"🚀 What's Possible"}];
+  const tabs=[{id:"dashboard",label:"Dashboard"},{id:"report",label:"Harvest Report"},{id:"nextrun",label:"Next Run"},{id:"roadmap",label:"🚀 What's Possible"},{id:"trayhealth",label:"🔬 Tray Health"}];
   return(
     <div className="min-h-screen" style={{background:C.cream}}>
       <div className="shadow-md" style={{background:C.navyBlue}}>
@@ -1144,6 +1426,7 @@ export default function SkyHarvestApp(){
         {tab==="report"&&<HarvestReportTab/>}
         {tab==="nextrun"&&<NextRunTab/>}
         {tab==="roadmap"&&<RoadmapTab/>}
+        {tab==="trayhealth"&&<TrayHealthTab/>}
       </div>
     </div>
   );
