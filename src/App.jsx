@@ -58,6 +58,33 @@ const atRisk = [
   { name: "Max Munchies",    change: -45, weeks: 6, last: "$0",   status: "Lapsed" },
   { name: "Ancora West Van", change: -11, weeks: 2, last: "$440", status: "Watch" },
 ];
+
+const risingStars = [
+  { name: "Kuns Omakase",       change: +18, weeks: 6, newLines: 3, value: "$1,720" },
+  { name: "Avela Catering",     change: +31, weeks: 4, newLines: 2, value: "$640"  },
+  { name: "Arbutus Club",       change: +24, weeks: 5, newLines: 4, value: "$580"  },
+  { name: "Plaza Premium",      change: +12, weeks: 8, newLines: 2, value: "$2,610" },
+  { name: "Ama Raw Bar",        change: +9,  weeks: 5, newLines: 1, value: "$940"  },
+];
+
+const biggestSellers = [
+  { crop: "Pea Shoots",       weeklyKg: 9.2,  weeklyVal: 2840, share: 100 },
+  { crop: "Sunflower Shoots", weeklyKg: 6.4,  weeklyVal: 1920, share: 68  },
+  { crop: "Radish Blend",     weeklyKg: 5.8,  weeklyVal: 1440, share: 51  },
+  { crop: "Cilantro",         weeklyKg: 5.1,  weeklyVal: 980,  share: 35  },
+  { crop: "Mellow Mix",       weeklyKg: 4.2,  weeklyVal: 860,  share: 30  },
+  { crop: "Spicy Mix",        weeklyKg: 3.1,  weeklyVal: 720,  share: 25  },
+  { crop: "Basil",            weeklyKg: 3.8,  weeklyVal: 640,  share: 23  },
+];
+
+const decliningCrops = [
+  { crop: "Ruby Stem Radish", change: -31, weeks: 6, note: "Customers switching to Radish Blend" },
+  { crop: "Broccoli",         change: -22, weeks: 6, note: "Low standalone demand" },
+  { crop: "Spicy Mix",        change: -18, weeks: 4, note: "Order frequency dropping" },
+  { crop: "Kale",             change: -14, weeks: 3, note: "Seasonal — monitor" },
+  { crop: "Peppercress",      change: -9,  weeks: 2, note: "Watch — early signal" },
+];
+
 const growingCycles = [
   { crop: "Basil",            planted: 19, total: 21, daysLeft: 2,  kg: 3.8 },
   { crop: "Arugula",          planted: 18, total: 21, daysLeft: 3,  kg: 2.4 },
