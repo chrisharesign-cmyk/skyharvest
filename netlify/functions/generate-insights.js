@@ -1,3 +1,4 @@
+// generate-insights v2 — Sky Harvest AI narrative proxy
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
   
