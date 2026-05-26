@@ -705,37 +705,31 @@ function LegacySiteView() {
     <div style={{maxWidth:600}}>
       <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-          <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Interim access</p>
+          <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Coming soon</p>
           <h3 style={{fontSize:16,fontWeight:900,color:T.textMain,margin:0}}>Legacy Site</h3>
         </div>
         <div style={{padding:20}}>
           <p style={{fontSize:13,color:T.textSub,margin:"0 0 20px",lineHeight:1.6}}>
-            The legacy site gives Chris Arthur and the Sky Harvest team access to interim functionality
-            while the full system is being built. It uses the same branding but shows only the tools
-            that are ready.
+            The legacy site is a separate Netlify deployment — same Sky Harvest branding and left nav,
+            but showing only the tools that are ready for Chris Arthur and the team to use right now.
+            It gives them a clean, simple URL to bookmark without seeing half-built features.
           </p>
-          <div style={{background:"#f0f6fb",borderRadius:10,border:`1px solid ${T.border}`,padding:16,marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <div style={{background:"#f0f6fb",borderRadius:10,border:`1px solid ${T.border}`,padding:16,marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:20}}>📊</span>
               <div>
-                <p style={{fontSize:13,fontWeight:700,color:T.textMain,margin:0}}>Harvest Report</p>
-                <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>Upload Wednesday and Friday xlsx files → instant crop weight report</p>
+                <p style={{fontSize:13,fontWeight:700,color:T.textMain,margin:0}}>Harvest Report — will be the only link</p>
+                <p style={{fontSize:11,color:T.textSub,margin:"3px 0 0"}}>
+                  Upload Wednesday and Friday xlsx files → instant crop weight report.
+                  Already live here under Records → Harvest Report.
+                </p>
               </div>
             </div>
-            <p style={{fontSize:11,color:T.textSub,margin:"0 0 10px"}}>Live and working with real data. This is what ChatGPT couldn't deliver.</p>
           </div>
-          <div style={{display:"flex",gap:10}}>
-            <a href="https://skyharvest-legacy.netlify.app" target="_blank" rel="noreferrer"
-              style={{flex:1,display:"block",padding:"10px 16px",background:T.sky,color:"#fff",borderRadius:8,fontSize:13,fontWeight:700,textAlign:"center",textDecoration:"none"}}>
-              Open Legacy Site ↗
-            </a>
-            <button style={{padding:"10px 16px",borderRadius:8,border:`1px solid ${T.border}`,fontSize:13,fontWeight:700,color:T.textSub,cursor:"pointer",background:"#fff"}}>
-              Copy link
-            </button>
+          <div style={{padding:14,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,fontSize:12,color:"#92400e"}}>
+            <strong>Not deployed yet.</strong> The Harvest Report is available now under Records in this nav.
+            The legacy site will be a separate URL once we build and deploy it — same tool, cleaner presentation for Chris Arthur.
           </div>
-          <p style={{fontSize:11,color:T.textSub,margin:"12px 0 0",textAlign:"center",fontStyle:"italic"}}>
-            Legacy site will be deployed separately — same nav, one link
-          </p>
         </div>
       </div>
     </div>
