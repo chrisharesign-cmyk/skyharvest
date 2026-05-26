@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import HarvestManager from "./HarvestManager.jsx";
 import OrderInbox from "./OrderInbox.jsx";
+import ProvenanceTrail from "./ProvenanceTrail.jsx";
 import { subscribe as workflowSubscribe, getState as getWorkflowState, getPickList, getDeliveryRuns, getConfirmedCustomers } from "./lib/workflowStore";
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
@@ -88,8 +89,9 @@ const NAV = [
     { id:"atrisk",     label:"At Risk",          icon:"⚠️", color:"#c0432b" },
   ]},
   { section: "RECORDS", items: [
-    { id:"harvests",   label:"Harvest Report",   icon:"📊", color:"#3e7da1" },
-    { id:"cert",       label:"Certification",    icon:"🏷️", color:"#5a8a2e" },
+    { id:"harvests",     label:"Harvest Report",   icon:"📊", color:"#3e7da1" },
+    { id:"provenance",   label:"Provenance Trail",  icon:"🔗", color:"#5a8a2e" },
+    { id:"cert",         label:"Certification",     icon:"🏷️", color:"#5a8a2e" },
   ]},
   { section: "SYSTEM", items: [
     { id:"roadmap",    label:"What's Possible",  icon:"🚀", color:"#6b3a8a" },
@@ -1378,6 +1380,7 @@ const VIEWS = {
   customers:   <CustomersView/>,
   atrisk:      <AtRiskView/>,
   calendar:    <CalendarView/>,
+  provenance: <ProvenanceTrail/>,
   legacy: null,
 };
 
