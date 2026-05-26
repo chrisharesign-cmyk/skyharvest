@@ -271,7 +271,7 @@ export default function ProvenanceTrail() {
       </div>
 
       {/* Trail selector */}
-      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         {DEMO_TRAILS.map(trail=>(
           <button key={trail.id} onClick={()=>setSelectedTrail(trail)}
             style={{padding:"10px 16px",borderRadius:10,border:`2px solid ${selectedTrail.id===trail.id?T.sky:T.border}`,
@@ -410,7 +410,7 @@ export default function ProvenanceTrail() {
       {/* Mass Balance tab */}
       {activeTab==="massbalance" && (
         <div>
-          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:16}}>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"auto",marginBottom:16}}>
             <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
               <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Mass Balance — BCCOP Section 4.4</p>
               <p style={{fontSize:12,color:T.textSub,margin:"4px 0 0"}}>Seed purchased must justify product sold. Inspector verifies this during annual audit.</p>
@@ -459,7 +459,7 @@ export default function ProvenanceTrail() {
       {/* Cert documents tab */}
       {activeTab==="certdocs" && (
         <div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
             {[
               {icon:"🌾",title:"West Coast Seeds",type:"Seed Supplier",cert:"Pro-Cert Organic PRO-2026-WCS-001",expiry:"Jun 2027",crops:"Pea Shoots, Sunflower, Basil",status:"valid"},
               {icon:"🌾",title:"Johnny's Selected Seeds",type:"Seed Supplier",cert:"MOFGA MOF-2026-JSS-042",expiry:"Aug 2027",crops:"Pea Shoots, Cilantro",status:"valid"},
