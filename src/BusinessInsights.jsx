@@ -347,7 +347,7 @@ export default function BusinessInsights({ sheets }) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 50000);
     try {
-      const res = await fetch('/.netlify/functions/generate-insights',{
+      const res = await fetch('/api/generate-insights',{
         method:'POST',
         signal: controller.signal,
         headers:{'Content-Type':'application/json'},
