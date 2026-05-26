@@ -1,5 +1,21 @@
-import { useState } from "react";
-import { useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+
+// ── Shared mobile detection ───────────────────────────────────────────────────
+// Module-level so any view can import useMobile() without prop drilling
+const _mobileListeners = new Set();
+let _isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => {
+    const was = _isMobile;
+    _isMobile = window.innerWidth < 768;
+    if (was !== _isMobile) _mobileListeners.forEach(fn => fn(_isMobile));
+  });
+}
+function useMobile() {
+  const [m, setM] = useState(_isMobile);
+  useEffect(() => { _mobileListeners.add(setM); return () => _mobileListeners.delete(setM); }, []);
+  return m;
+}
 import * as XLSX from 'xlsx';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -350,13 +366,13 @@ function DashboardView(){
       <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"8px 14px",marginBottom:16,fontSize:12,color:"#92400e"}}>
         ⚠ Revenue, customer trends and harvest data shown here are <strong>illustrative</strong> — derived from spreadsheet structure. Real figures populate once orders are entered in Harvest Runs.
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
         <KPI label="Weekly Revenue" value={`$${thisT.toLocaleString()}`} sub={`${pct>0?"+":""}${pct}% vs last week`} good={pct>0}/>
         <KPI label="Active Customers" value="149" sub="From harvest sheets" good={true}/>
         <KPI label="At Risk" value={`${atRisk.length}`} sub="On order decline" good={false}/>
         <KPI label="Harvest This Week" value="52.4 kg" sub="Wed + Fri combined" good={true}/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr",gap:12,marginBottom:12}}>
         <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:20}}>
           <p style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 16px"}}>Weekly Revenue — Wed &amp; Fri Runs</p>
           <ResponsiveContainer width="100%" height={200}>
@@ -1270,57 +1286,82 @@ function PickListView() {
   ];
   const done = Object.values(checked).filter(Boolean).length;
   const totalKg = (pickList.reduce((s,r)=>s+r.totalG,0)/1000).toFixed(1);
+  const isMobile = useMobile();
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isMobile?12:20}}>
         <div>
-          <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Pick List — Wednesday 28 May</h1>
-          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Pack by 6:30 AM · {done}/{pickList.length} items confirmed · {totalKg} kg total</p>
+          <h1 style={{fontSize:isMobile?18:22,fontWeight:800,color:T.textMain,margin:0}}>Pick List — Wed 28 May</h1>
+          <p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>Pack by 6:30 AM · {done}/{pickList.length} confirmed · {totalKg}kg</p>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          <span style={{fontSize:28,fontWeight:900,color:T.green}}>{done}/{pickList.length}</span>
-        </div>
-      </div>
-      <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-            {["","Crop / Pack","Units","Pack wt (g)","Total (g)","kg"].map(h=>(
-              <th key={h} style={{textAlign:"left",padding:"10px 16px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>{pickList.map((r,i)=>(
-            <tr key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
-              style={{borderBottom:`1px solid ${T.border}`,background:checked[i]?"#f0f9ec":i%2===0?"#fff":"#fafbfc",cursor:"pointer",transition:"background 0.12s"}}>
-              <td style={{padding:"11px 16px"}}>
-                <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:900}}>
-                  {checked[i]?"✓":""}
-                </div>
-              </td>
-              <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>
-                {r.crop}
-                {r.fab && <span style={{marginLeft:6,fontSize:9,color:"#9ca3af",fontStyle:"italic"}}>(demo data)</span>}
-              </td>
-              <td style={{padding:"11px 16px",fontWeight:800,color:r.fab?T.rust:T.textMain}}>{r.units}</td>
-              <td style={{padding:"11px 16px",color:T.textSub}}>{r.packWt}</td>
-              <td style={{padding:"11px 16px",color:T.textSub}}>{r.totalG.toLocaleString()}</td>
-              <td style={{padding:"11px 16px",fontWeight:700,color:T.sky}}>{(r.totalG/1000).toFixed(2)}</td>
-            </tr>
-          ))}</tbody>
-          <tfoot><tr style={{background:T.textMain}}>
-            <td colSpan={2} style={{padding:"10px 16px",fontWeight:800,color:"#fff"}}>Total</td>
-            <td style={{padding:"10px 16px",fontWeight:900,color:"#fff",textAlign:"left"}}>{pickList.reduce((s,r)=>s+r.units,0)}</td>
-            <td/>
-            <td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.totalG,0).toLocaleString()}</td>
-            <td style={{padding:"10px 16px",fontWeight:900,color:T.green}}>{totalKg}</td>
-          </tr></tfoot>
-        </table>
-        <div style={{padding:"10px 16px",background:"#fffbeb",borderTop:`1px solid #fde68a`,fontSize:12,color:"#92400e"}}>
-          ⚠ Sunflower Shoots short by 0.7kg vs orders — check trays A-2 before packing
+        <div style={{width:52,height:52,borderRadius:26,background:done===pickList.length?T.green:T.sky,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",flexShrink:0}}>
+          <span style={{fontSize:16,fontWeight:900,color:"#fff",lineHeight:1}}>{done}</span>
+          <span style={{fontSize:9,color:"rgba(255,255,255,0.7)",lineHeight:1}}>/{pickList.length}</span>
         </div>
       </div>
+      {isMobile ? (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {pickList.map((r,i)=>(
+            <div key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
+              style={{background:checked[i]?"#f0f9ec":T.surface,borderRadius:12,border:`2px solid ${checked[i]?T.green:T.border}`,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,cursor:"pointer",transition:"all 0.15s",opacity:checked[i]?0.7:1}}>
+              <div style={{width:40,height:40,borderRadius:8,flexShrink:0,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                {checked[i]&&<span style={{fontSize:22,color:"#fff",fontWeight:900,lineHeight:1}}>✓</span>}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:15,fontWeight:700,color:checked[i]?T.textSub:T.textMain,margin:0,textDecoration:checked[i]?"line-through":"none"}}>
+                  {r.crop}{r.fab&&<span style={{marginLeft:6,fontSize:10,color:"#b91c1c",fontStyle:"italic"}}>(demo)</span>}
+                </p>
+                <p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>{r.packWt}g · {(r.totalG/1000).toFixed(2)}kg total</p>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <p style={{fontSize:28,fontWeight:900,color:r.fab?T.rust:T.textMain,margin:0,lineHeight:1}}>{r.units}</p>
+                <p style={{fontSize:10,color:T.textSub,margin:"2px 0 0"}}>packs</p>
+              </div>
+            </div>
+          ))}
+          <div style={{padding:"12px 14px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a",fontSize:13,color:"#92400e",marginTop:4}}>
+            ⚠ Sunflower Shoots short 0.7kg — check tray A-2
+          </div>
+        </div>
+      ) : (
+        <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+              {["","Crop / Pack","Units","Pack wt (g)","Total (g)","kg"].map(h=>(
+                <th key={h} style={{textAlign:"left",padding:"10px 16px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{pickList.map((r,i)=>(
+              <tr key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
+                style={{borderBottom:`1px solid ${T.border}`,background:checked[i]?"#f0f9ec":i%2===0?"#fff":"#fafbfc",cursor:"pointer",transition:"background 0.12s"}}>
+                <td style={{padding:"11px 16px"}}>
+                  <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:900}}>{checked[i]?"✓":""}</div>
+                </td>
+                <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>
+                  {r.crop}{r.fab&&<span style={{marginLeft:6,fontSize:9,color:"#9ca3af",fontStyle:"italic"}}>(demo)</span>}
+                </td>
+                <td style={{padding:"11px 16px",fontWeight:800,color:r.fab?T.rust:T.textMain}}>{r.units}</td>
+                <td style={{padding:"11px 16px",color:T.textSub}}>{r.packWt}</td>
+                <td style={{padding:"11px 16px",color:T.textSub}}>{r.totalG.toLocaleString()}</td>
+                <td style={{padding:"11px 16px",fontWeight:700,color:T.sky}}>{(r.totalG/1000).toFixed(2)}</td>
+              </tr>
+            ))}</tbody>
+            <tfoot><tr style={{background:T.textMain}}>
+              <td colSpan={2} style={{padding:"10px 16px",fontWeight:800,color:"#fff"}}>Total</td>
+              <td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.units,0)}</td>
+              <td/><td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.totalG,0).toLocaleString()}</td>
+              <td style={{padding:"10px 16px",fontWeight:900,color:T.green}}>{totalKg}</td>
+            </tr></tfoot>
+          </table>
+          <div style={{padding:"10px 16px",background:"#fffbeb",borderTop:`1px solid #fde68a`,fontSize:12,color:"#92400e"}}>
+            ⚠ Sunflower Shoots short 0.7kg vs orders — check tray A-2
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // ── Calendar View ──────────────────────────────────────────────────────────────
 function CalendarView() {
@@ -1398,13 +1439,7 @@ const MOBILE_NAV = [
 export default function SkyHarvestMIS() {
   const [active, setActive] = useState("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const isMobile = useMobile();
 
   const handleNav = (id) => {
     if (id === "_more") { setMobileMenuOpen(p=>!p); return; }
