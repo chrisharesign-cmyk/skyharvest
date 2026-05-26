@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from "react";
 import { getTrayStore, subscribeTrayStore, addTray, addTrayNote, addTrayHealth } from "./lib/trayStore.js";
 import TrayDetailCard from "./TrayDetailCard.jsx";
 import Reporting from "./Reporting.jsx";
@@ -28,6 +28,10 @@ import HarvestManager from "./HarvestManager.jsx";
 import OrderInbox from "./OrderInbox.jsx";
 import ProvenanceTrail from "./ProvenanceTrail.jsx";
 import { subscribe as workflowSubscribe, getState as getWorkflowState, getPickList, getDeliveryRuns, getConfirmedCustomers } from "./lib/workflowStore";
+
+// ── Shared reporting context (sheets uploaded in Reporting tab) ───────────────
+import { ReportingSheetsContext, useReportingSheets } from "./reportingContext.js";
+
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 export const T = {
@@ -117,6 +121,7 @@ export function PageHeader({title, sub, action}) {
       </div>
       {action && <button style={{background:T.sky,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{action}</button>}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -146,6 +151,7 @@ export function DataTable({cols, rows}) {
         </tbody>
       </table>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -156,6 +162,7 @@ export function KPI({label, value, sub, good}) {
       <p style={{fontSize:26,fontWeight:900,color:T.textMain,margin:"6px 0 4px",letterSpacing:"-0.03em"}}>{value}</p>
       {sub&&<p style={{fontSize:12,fontWeight:600,color:good===false?T.rust:T.green,margin:0}}>{sub}</p>}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -426,6 +433,7 @@ function DashboardView(){
         </div>
       </div>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -644,6 +652,7 @@ function PlantingsView(){
         </table>
       </div>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -700,6 +709,7 @@ function DeliveriesView(){
         </div>
       )}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -716,6 +726,7 @@ function CertView(){
         rows={certRecords}
       />
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -800,6 +811,7 @@ function HarvestReportView(){
         );
       })()}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -848,6 +860,7 @@ function RoadmapView(){
         </div>
       ))}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1042,6 +1055,7 @@ function TrayHealthView(){
         </div>
       </div>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1208,6 +1222,7 @@ function GrowRoomView() {
         </div>
       </div>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1230,6 +1245,7 @@ function CustomersView() {
         {key:"status",label:"Status",render:v=><Pill label={v}/>},
       ]} rows={custList}/>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1245,6 +1261,7 @@ function AtRiskView() {
         {key:"status",label:"Status",render:v=><Pill label={v}/>},
       ]} rows={atRisk}/>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1331,6 +1348,7 @@ function PickListView() {
         </div>
       )}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1363,6 +1381,7 @@ function CalendarView() {
         ))}
       </div>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1381,10 +1400,18 @@ function OrderInboxWrapper() {
     }}>
       <OrderInbox/>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
 // ── VIEWS object ──────────────────────────────────────────────────────────────
+
+// ── BusinessInsights wrapper (reads shared sheets from context) ───────────────
+function BusinessInsightsWrapper() {
+  const { sheets } = useReportingSheets();
+  return <BusinessInsights sheets={sheets} />;
+}
+
 const VIEWS = {
   dashboard:   <DashboardView/>,
   plantings:   <PlantingsView/>,
@@ -1418,6 +1445,7 @@ function HarvestManagerEmbed() {
     <div style={{height:"100%",overflow:"hidden",display:"flex",flexDirection:"column"}}>
       <HarvestManager/>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
@@ -1453,12 +1481,14 @@ function LegacySiteView({ navigate }) {
         </div>
       </div>
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
 
 export default function SkyHarvestMIS() {
   const [active, setActive] = useState("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sharedSheets, setSharedSheets] = useState([]);
   const isMobile = useMobile();
 
   const handleNav = (id) => {
@@ -1468,6 +1498,7 @@ export default function SkyHarvestMIS() {
   };
 
   return (
+    <ReportingSheetsContext.Provider value={{sheets:sharedSheets,setSheets:setSharedSheets}}>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
 
       {/* Sidebar — desktop only */}
@@ -1573,5 +1604,6 @@ export default function SkyHarvestMIS() {
         </div>
       )}
     </div>
+    </ReportingSheetsContext.Provider>
   );
 }
