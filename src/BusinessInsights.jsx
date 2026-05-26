@@ -451,6 +451,20 @@ export default function BusinessInsights({ sheets }) {
                 Sparkline = weekly order volume (oldest → newest). Trend % compares the last 7 weeks against weeks 4–7 as a stable baseline, skipping January which was elevated by Dine Out Vancouver. Colour: <span style={{color:T.green,fontWeight:700}}>green</span> = growing &gt;15%, <span style={{color:T.rust,fontWeight:700}}>red</span> = declining &gt;25%, <span style={{color:T.amber,fontWeight:700}}>amber</span> = in between.
               </div>
               {ins.top10.map((c,i)=><AccountRow key={c.name} c={c} rank={i+1}/>)}
+              {/* Narrative — generated inline below accounts */}
+              {(loading || error || aiReport) && (
+                <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
+                  {loading&&(
+                    <div style={{padding:'20px 0',textAlign:'center',color:T.textSub}}>
+                      <div style={{fontSize:20,marginBottom:6}}>⏳</div>
+                      <div style={{fontSize:12,fontWeight:600}}>Generating narrative…</div>
+                    </div>
+                  )}
+                  {error&&<div style={{background:'#fef2f2',border:`1px solid #fca5a5`,
+                    borderRadius:8,padding:'12px 16px',color:T.rust,fontSize:12}}>{error}</div>}
+                  {aiReport&&<ReportRenderer text={aiReport}/>}
+                </div>
+              )}
             </div>
 
             {/* Right panels — order: Concentration, Growing, Declining, Dormant */}
@@ -499,24 +513,6 @@ export default function BusinessInsights({ sheets }) {
             </div>
           </div>
         </div>
-
-      {/* AI Report — appears below overview when generated */}
-      {(loading || error || aiReport) && (
-        <div style={{marginTop:14}}>
-          {loading&&(
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
-              padding:'40px 24px',textAlign:'center',color:T.textSub}}>
-              <div style={{fontSize:28,marginBottom:10}}>⏳</div>
-              <div style={{fontSize:13,fontWeight:600}}>Analysing your data…</div>
-              <div style={{fontSize:11,marginTop:4}}>Generating narrative from {ins.totalWeeks} weeks of combined harvest data.</div>
-            </div>
-          )}
-          {error&&<div style={{background:'#fef2f2',border:`1px solid #fca5a5`,borderRadius:10,
-            padding:'16px 20px',color:T.rust,fontSize:13}}>{error}</div>}
-          {aiReport&&<ReportRenderer text={aiReport}/>}
-
-        </div>
-      )}
     </div>
   );
 }
