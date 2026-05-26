@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import HarvestManager from "./HarvestManager.jsx";
 import OrderInbox from "./OrderInbox.jsx";
+import { subscribe as workflowSubscribe, getState as getWorkflowState, getPickList, getDeliveryRuns, getConfirmedCustomers } from "./lib/workflowStore";
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 export const T = {
@@ -431,25 +432,57 @@ function PlantingsView(){
 }
 
 function DeliveriesView(){
+  const [wfState, setWfState] = useState(getWorkflowState());
+  useEffect(()=>{ return workflowSubscribe(s=>setWfState({...s})); },[]);
+  const runs = getDeliveryRuns();
+  const haslive = runs.length > 0;
+
   return(
     <div>
-      <PageHeader title="Delivery Runs" sub="Routes · drivers · confirmation"/>
-      <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 14px",marginBottom:16,fontSize:12,color:"#9a3412"}}>
-        ⚠ Driver names, routes and times are <strong style={{color:"#b91c1c"}}>fabricated</strong>. Real data populated once staff profiles and delivery confirmation is live.
-      </div>
-      <DataTable
-        cols={[
-          {key:"run",label:"Run"},
-          {key:"route",label:"Route"},
-          {key:"driver",label:"Driver",render:(v,r)=><Fab>{v}</Fab>},
-          {key:"transport",label:"Mode"},
-          {key:"stops",label:"Stops",render:(v,r)=><Fab>{v}</Fab>},
-          {key:"depart",label:"Depart",render:(v,r)=><Fab>{v}</Fab>},
-          {key:"value",label:"Value",render:(v,r)=><Fab>${v}</Fab>},
-          {key:"status",label:"Status",render:v=><Pill label={v}/>},
-        ]}
-        rows={deliveries}
-      />
+      <PageHeader title="Delivery Runs — Wednesday 28 May" sub={haslive?`${runs.length} routes · auto-generated from confirmed orders`:"Confirm orders in Orders Inbox to generate delivery runs"}/>
+      {!haslive && (
+        <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:12,color:"#92400e"}}>
+          No orders confirmed yet. Go to <strong>Orders Inbox</strong> and confirm incoming orders — routes will appear here automatically.
+        </div>
+      )}
+      {haslive && runs.map(run=>(
+        <div key={run.route} style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,marginBottom:16,overflow:"hidden"}}>
+          <div style={{padding:"12px 20px",background:T.textMain,display:"flex",alignItems:"center",gap:16}}>
+            <span style={{fontSize:18}}>{run.transport.mode.split(" ")[0]}</span>
+            <div style={{flex:1}}>
+              <p style={{fontSize:14,fontWeight:800,color:"#fff",margin:0}}>{run.route}</p>
+              <p style={{fontSize:11,color:"#86b9d0",margin:"2px 0 0"}}>
+                {run.transport.driver} · Depart {run.transport.depart} · {run.stopList.length} stops · {run.totalPacks} packs
+              </p>
+            </div>
+            <span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"#e8f0fb",color:"#1a3a7a"}}>Scheduled</span>
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+              {["Stop","Customer","Items","Packs","Est. Value","Confirmed"].map(h=>(
+                <th key={h} style={{textAlign:"left",padding:"8px 16px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{run.stopList.map((stop,i)=>(
+              <tr key={stop.customer} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc"}}>
+                <td style={{padding:"10px 16px",color:T.textSub,fontWeight:700}}>{i+1}</td>
+                <td style={{padding:"10px 16px",fontWeight:700,color:T.textMain}}>{stop.customer}</td>
+                <td style={{padding:"10px 16px",color:T.textSub,fontSize:11,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{stop.items}</td>
+                <td style={{padding:"10px 16px",fontWeight:800,color:T.textMain}}>{stop.totalPacks}</td>
+                <td style={{padding:"10px 16px",color:T.textSub}}>${stop.valueCAD}</td>
+                <td style={{padding:"10px 16px"}}>
+                  <span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"#fef3dc",color:"#7a5000"}}>Pending</span>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ))}
+      {haslive && (
+        <div style={{padding:10,background:"#f0f6fb",borderRadius:8,border:`1px solid ${T.border}`,fontSize:12,color:T.textSub}}>
+          💡 Driver confirmation — staff tap to confirm each stop on their phone. This closes the organic certification chain of custody for each delivery.
+        </div>
+      )}
     </div>
   );
 }
@@ -950,21 +983,25 @@ function AtRiskView() {
 // ── Pick List View ─────────────────────────────────────────────────────────────
 function PickListView() {
   const [checked, setChecked] = useState({});
+  const [wfState, setWfState] = useState(getWorkflowState());
+  useEffect(()=>{ return workflowSubscribe(s=>setWfState({...s})); },[]);
+
+  // Build pick list from workflow store — real confirmed orders
+  const workflowPickList = getPickList();
+  // Fallback fabricated data shown in red when no orders confirmed yet
+  const fabricatedBase = [
+    {crop:"Pea Shoots (M)",         units:49,packWt:93, totalG:4557,fab:true},
+    {crop:"Sunflower Shoots (M)",   units:26,packWt:101,totalG:2626,fab:true},
+    {crop:"Sunflower Shoots (RETAIL) (M)",units:43,packWt:101,totalG:4343,fab:true},
+    {crop:"Radish Blend (M)",       units:12,packWt:98, totalG:1176,fab:true},
+    {crop:"Mellow Mix (L)",         units:8, packWt:208,totalG:1664,fab:true},
+    {crop:"Kale (S)",               units:7, packWt:42, totalG:294, fab:true},
+  ];
+  // Merge: workflow orders take priority, fab fills the rest
+  const confirmedCrops = new Set(workflowPickList.map(p=>p.product));
   const pickList = [
-    {crop:"Pea Shoots (M)",         units:49,packWt:93, totalG:4557},
-    {crop:"Pea Shoots (L)",         units:21,packWt:220,totalG:4620},
-    {crop:"Pea Shoots (Retail M)",  units:40,packWt:93, totalG:3720},
-    {crop:"Sunflower Shoots (M)",   units:26,packWt:101,totalG:2626},
-    {crop:"Sunflower (Retail M)",   units:43,packWt:101,totalG:4343},
-    {crop:"Radish Blend (M)",       units:12,packWt:98, totalG:1176},
-    {crop:"Radish Blend (L)",       units:14,packWt:238,totalG:3332},
-    {crop:"Cilantro (M)",           units:24,packWt:53, totalG:1272},
-    {crop:"Mellow Mix (L)",         units:10,packWt:208,totalG:2080},
-    {crop:"Spicy Mix (Retail S)",   units:17,packWt:47, totalG:799},
-    {crop:"Basil (S)",              units:14,packWt:17, totalG:238},
-    {crop:"Basil (M)",              units:10,packWt:33, totalG:330},
-    {crop:"Arugula (M)",            units:10,packWt:68, totalG:680},
-    {crop:"Kale (S)",               units:7, packWt:42, totalG:294},
+    ...workflowPickList.map(p=>({crop:p.product,units:p.totalQty,packWt:p.wt,totalG:p.totalQty*p.wt,fab:false})),
+    ...fabricatedBase.filter(f=>!confirmedCrops.has(f.crop)),
   ];
   const done = Object.values(checked).filter(Boolean).length;
   const totalKg = (pickList.reduce((s,r)=>s+r.totalG,0)/1000).toFixed(1);
@@ -994,8 +1031,11 @@ function PickListView() {
                   {checked[i]?"✓":""}
                 </div>
               </td>
-              <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>{r.crop}</td>
-              <td style={{padding:"11px 16px",fontWeight:800,color:T.textMain}}>{r.units}</td>
+              <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>
+                {r.crop}
+                {r.fab && <span style={{marginLeft:6,fontSize:9,color:"#9ca3af",fontStyle:"italic"}}>(demo data)</span>}
+              </td>
+              <td style={{padding:"11px 16px",fontWeight:800,color:r.fab?T.rust:T.textMain}}>{r.units}</td>
               <td style={{padding:"11px 16px",color:T.textSub}}>{r.packWt}</td>
               <td style={{padding:"11px 16px",color:T.textSub}}>{r.totalG.toLocaleString()}</td>
               <td style={{padding:"11px 16px",fontWeight:700,color:T.sky}}>{(r.totalG/1000).toFixed(2)}</td>
