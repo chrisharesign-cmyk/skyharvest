@@ -6,6 +6,7 @@ import {
   Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import HarvestManager from "./HarvestManager.jsx";
+import OrderInbox from "./OrderInbox.jsx";
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 export const T = {
@@ -40,6 +41,7 @@ const NAV = [
     { id:"trayhealth", label:"Tray Health AI",   icon:"🤖", color:"#3e7da1" },
   ]},
   { section: "ORDERS", items: [
+    { id:"orderinbox", label:"Orders Inbox",     icon:"📬", color:"#6b3a8a" },
     { id:"harvestruns",label:"Harvest Runs",     icon:"📋", color:"#d4890a" },
     { id:"picklist",   label:"Pick List",        icon:"✅", color:"#86b955" },
     { id:"deliveries", label:"Delivery Runs",    icon:"🚐", color:"#5a6e7a" },
@@ -700,7 +702,7 @@ function TrayHealthView(){
   );
 }
 
-function LegacySiteView() {
+function LegacySiteView({ navigate }) {
   return (
     <div style={{maxWidth:600}}>
       <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
@@ -710,26 +712,36 @@ function LegacySiteView() {
         </div>
         <div style={{padding:20}}>
           <p style={{fontSize:13,color:T.textSub,margin:"0 0 20px",lineHeight:1.6}}>
-            The legacy site is a separate Netlify deployment — same Sky Harvest branding and left nav,
-            but showing only the tools that are ready for Chris Arthur and the team to use right now.
-            It gives them a clean, simple URL to bookmark without seeing half-built features.
+            Standalone tools built as stopgaps while the full system is developed. Each one solves a
+            specific pain point right now. Click any feature to open it.
           </p>
-          <div style={{background:"#f0f6fb",borderRadius:10,border:`1px solid ${T.border}`,padding:16,marginBottom:12}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:20}}>📊</span>
-              <div>
-                <p style={{fontSize:13,fontWeight:700,color:T.textMain,margin:0}}>Harvest Report — will be the only link</p>
-                <p style={{fontSize:11,color:T.textSub,margin:"3px 0 0"}}>
-                  Upload Wednesday and Friday xlsx files → instant crop weight report.
-                  Already live here under Records → Harvest Report.
-                </p>
-              </div>
-            </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {[
+              {id:"harvests",  icon:"📊", title:"Harvest Report",  desc:"Upload Wednesday and Friday xlsx files. Get crop weight report by product or base crop. Export to Excel or print as PDF.", status:"live"},
+              {id:"orderinbox",icon:"📬", title:"Orders Inbox",    desc:"All incoming orders — email, voicemail, WhatsApp — parsed by Claude and queued for one-tap confirmation.", status:"mockup"},
+              {id:"trayhealth",icon:"🤖", title:"Tray Health AI",  desc:"Upload a tray photo. Claude Vision assesses growth stage, health score, and days to harvest.", status:"live"},
+              {id:"roadmap",   icon:"🚀", title:"Full System",     desc:"See the complete roadmap — what is built, what is next, and what the full platform looks like.", status:"live"},
+            ].map(f=>(
+              <button key={f.id} onClick={()=>navigate(f.id)}
+                style={{textAlign:"left",padding:16,background:T.surface,border:`1px solid ${f.status==="live"?T.sky:T.border}`,borderRadius:10,cursor:"pointer",transition:"all 0.15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#f0f7ff";e.currentTarget.style.borderColor=T.sky;}}
+                onMouseLeave={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=f.status==="live"?T.sky:T.border;}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <span style={{fontSize:24}}>{f.icon}</span>
+                  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,
+                    background:f.status==="live"?"#e8f6dc":"#f0f0f0",
+                    color:f.status==="live"?"#2a6010":"#666"}}>
+                    {f.status==="live"?"✓ Live":"Preview"}
+                  </span>
+                </div>
+                <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:"0 0 6px"}}>{f.title}</p>
+                <p style={{fontSize:12,color:T.textSub,margin:0,lineHeight:1.5}}>{f.desc}</p>
+              </button>
+            ))}
           </div>
-          <div style={{padding:14,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,fontSize:12,color:"#92400e"}}>
-            <strong>Not deployed yet.</strong> The Harvest Report is available now under Records in this nav.
-            The legacy site will be a separate URL once we build and deploy it — same tool, cleaner presentation for Chris Arthur.
-          </div>
+          <p style={{fontSize:11,color:T.textSub,margin:"16px 0 0",textAlign:"center",fontStyle:"italic"}}>
+            More stopgap tools will appear here as they are built
+          </p>
         </div>
       </div>
     </div>
@@ -753,7 +765,8 @@ const VIEWS = {
   roadmap:     <RoadmapView/>,
   trayhealth:  <TrayHealthView/>,
   harvestruns: <HarvestManagerEmbed/>,
-  legacy: <LegacySiteView/>,
+  orderinbox: <div style={{position:"fixed",top:44,left:234,right:0,bottom:0,zIndex:1}}><OrderInbox/></div>,
+  legacy: null,
 };
 
 const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -808,7 +821,7 @@ export default function SkyHarvestMIS() {
           <p style={{fontSize:11,color:T.textSub,margin:0}}>Week of <strong style={{color:T.textMain}}>26 May 2026</strong></p>
         </div>
         <div style={{flex:1,overflowY:"auto",background:T.bg,padding:active==="harvestruns"?0:24}}>
-          {VIEWS[active]||<DashboardView/>}
+          {active==="legacy" ? <LegacySiteView navigate={setActive}/> : (VIEWS[active]||<DashboardView/>)}
         </div>
       </div>
     </div>
