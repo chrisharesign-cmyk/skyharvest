@@ -743,8 +743,319 @@ function LegacySiteView({ navigate }) {
 
 function HarvestManagerEmbed() {
   return (
-    <div style={{position:"fixed",top:44,left:234,right:0,bottom:0,zIndex:1}}>
+    <div style={{height:"calc(100vh - 88px)",overflow:"hidden",margin:"-24px"}}>
       <HarvestManager/>
+    </div>
+  );
+}
+
+
+// ── Grow Room View ─────────────────────────────────────────────────────────────
+function GrowRoomView() {
+  const [scanInput, setScanInput] = useState("");
+  const [scannedTray, setScannedTray] = useState(null);
+  const [scanHistory, setScanHistory] = useState([]);
+
+  const TRAYS = plantings; // reuse fabricated plantings data
+
+  const handleScan = (e) => {
+    e.preventDefault();
+    const tray = TRAYS.find(t => t.id.toLowerCase() === scanInput.toLowerCase()) || TRAYS[Math.floor(Math.random()*TRAYS.length)];
+    const result = {...tray, scannedAt: new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})};
+    setScannedTray(result);
+    setScanHistory(prev => [result, ...prev].slice(0,5));
+    setScanInput("");
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Grow Room</h1>
+          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Scan a tray barcode to pull up its full planting record instantly</p>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        {/* Scanner */}
+        <div>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:16}}>
+            <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+              <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Barcode Scanner</p>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{background:"#1a2e3b",borderRadius:10,padding:20,marginBottom:16,textAlign:"center"}}>
+                <p style={{fontSize:36,margin:"0 0 8px"}}>📷</p>
+                <p style={{fontSize:12,color:"#86b955",fontWeight:700,margin:"0 0 4px"}}>Camera ready</p>
+                <p style={{fontSize:11,color:"#5a8aaa",margin:0}}>Point at tray barcode to scan</p>
+                <p style={{fontSize:10,color:"#4a6a80",margin:"8px 0 0",fontStyle:"italic"}}>Browser barcode scanning — no hardware needed</p>
+              </div>
+              <p style={{fontSize:11,color:T.textSub,textAlign:"center",margin:"0 0 10px"}}>Or type barcode manually:</p>
+              <form onSubmit={handleScan} style={{display:"flex",gap:8}}>
+                <input value={scanInput} onChange={e=>setScanInput(e.target.value)}
+                  placeholder="e.g. SH-260505-PEA-0001"
+                  style={{flex:1,padding:"9px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:12,outline:"none"}}/>
+                <button type="submit" style={{padding:"9px 16px",background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  Scan
+                </button>
+              </form>
+            </div>
+          </div>
+          {/* Scan history */}
+          {scanHistory.length > 0 && (
+            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+              <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`}}>
+                <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Recent Scans</p>
+              </div>
+              {scanHistory.map((t,i)=>(
+                <div key={i} onClick={()=>setScannedTray(t)}
+                  style={{padding:"10px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:12,alignItems:"center",cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
+                  onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                  <span style={{fontSize:18}}>🌱</span>
+                  <div style={{flex:1}}>
+                    <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{t.crop}</p>
+                    <p style={{fontSize:10,color:T.textSub,margin:"1px 0 0",fontFamily:"monospace"}}>{t.id}</p>
+                  </div>
+                  <span style={{fontSize:10,color:T.textSub}}>{t.scannedAt}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Tray record */}
+        <div>
+          {scannedTray ? (
+            <div style={{background:T.surface,borderRadius:12,border:`2px solid ${T.sky}`,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",background:`linear-gradient(135deg,${T.textMain},${T.sky})`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <p style={{fontSize:10,fontWeight:700,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record</p>
+                  <h3 style={{fontSize:16,fontWeight:900,color:"#fff",margin:"2px 0 0"}}>{scannedTray.crop}</h3>
+                </div>
+                <span style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:10,background:scannedTray.status==="On track"?"rgba(134,185,85,0.3)":"rgba(212,137,10,0.3)",color:scannedTray.status==="On track"?"#86b955":"#d4890a"}}>
+                  {scannedTray.status}
+                </span>
+              </div>
+              <div style={{padding:20}}>
+                {[
+                  ["Barcode ID",   scannedTray.id,        true],
+                  ["Planted",      scannedTray.planted,   false],
+                  ["Est. Harvest", scannedTray.harvest,   false],
+                  ["Seed Lot",     scannedTray.lot,       true],
+                  ["Soil Mix",     scannedTray.soil,      true],
+                  ["Planted By",   scannedTray.who,       true],
+                  ["Shelf",        scannedTray.shelf,     false],
+                ].map(([label, value, isFab]) => (
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
+                    <span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</span>
+                    <span style={{fontSize:12,fontWeight:600,color:isFab?T.rust:T.textMain,fontStyle:isFab?"italic":"normal"}}>{value}</span>
+                  </div>
+                ))}
+                <div style={{marginTop:16,display:"flex",gap:8}}>
+                  <button style={{flex:1,padding:"9px",background:T.green,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    🤖 Analyse Health
+                  </button>
+                  <button style={{flex:1,padding:"9px",background:"#fff",color:T.rust,border:`1px solid ${T.rust}`,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    ⚠ Flag Concern
+                  </button>
+                </div>
+                <div style={{marginTop:10,padding:10,background:"#f8fafb",borderRadius:8,border:`1px solid ${T.border}`}}>
+                  <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",margin:"0 0 6px"}}>Voice Memo</p>
+                  <button style={{width:"100%",padding:"7px",background:"#fff",border:`1px dashed ${T.border}`,borderRadius:6,fontSize:11,color:T.textSub,cursor:"pointer"}}>
+                    🎙 Tap to record observation
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:40,textAlign:"center",color:T.textSub}}>
+              <p style={{fontSize:36,margin:"0 0 12px"}}>📦</p>
+              <p style={{fontSize:14,fontWeight:700,color:T.textMain,margin:"0 0 6px"}}>Scan a tray to see its record</p>
+              <p style={{fontSize:12,margin:0,lineHeight:1.6}}>All planting data, seed lot, soil mix, organic certification details and tray health history will appear here instantly.</p>
+            </div>
+          )}
+
+          {/* Current trays overview */}
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginTop:16}}>
+            <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`}}>
+              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>All Growing Trays — {plantings.length} active</p>
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+                {["Crop","Shelf","Days Left","Status"].map(h=>(
+                  <th key={h} style={{textAlign:"left",padding:"7px 14px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>{plantings.map((t,i)=>(
+                <tr key={t.id} onClick={()=>setScannedTray({...t,scannedAt:new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})})}
+                  style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc",cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
+                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafbfc"}>
+                  <td style={{padding:"8px 14px",fontWeight:600,color:T.textMain}}>{t.crop}</td>
+                  <td style={{padding:"8px 14px",color:T.textSub,fontFamily:"monospace",fontSize:11}}>{t.shelf}</td>
+                  <td style={{padding:"8px 14px"}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,
+                      background:t.daysLeft<=3?"#e8f6dc":t.daysLeft<=6?"#fef3dc":"#f0f0f0",
+                      color:t.daysLeft<=3?T.green:t.daysLeft<=6?T.amber:"#666"}}>{t.daysLeft}d</span>
+                  </td>
+                  <td style={{padding:"8px 14px"}}><span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,background:t.status==="On track"?"#e8f6dc":t.status==="Watch"?"#fef3dc":"#fde8e8",color:t.status==="On track"?T.green:t.status==="Watch"?T.amber:T.rust}}>{t.status}</span></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Customers & At Risk Views ──────────────────────────────────────────────────
+function CustomersView() {
+  const custList = [
+    ...topCustomers.map((c,i)=>({...c,id:`C${String(i+1).padStart(3,"0")}`,type:"Restaurant",day:"Wed+Fri",status:"Active",contact:`orders@${c.name.toLowerCase().replace(/[^a-z]/g,"")}.ca`})),
+    ...atRisk.map((r,i)=>({name:r.name,id:`C${String(i+20).padStart(3,"0")}`,monthly:parseInt(r.last.replace(/[$,]/g,"")||0),trend:r.change,type:"Restaurant",day:"Wed",status:r.status,contact:`info@${r.name.toLowerCase().replace(/[^a-z]/g,"")}.ca`})),
+  ];
+  return (
+    <div>
+      <PageHeader title="All Customers" sub={`${custList.length} customers · from harvest spreadsheet columns`} action="+ Add Customer"/>
+      <DataTable cols={[
+        {key:"id",label:"ID",render:v=><span style={{fontFamily:"monospace",fontSize:11,color:T.sky}}>{v}</span>},
+        {key:"name",label:"Customer"},
+        {key:"type",label:"Type"},
+        {key:"day",label:"Delivery Day"},
+        {key:"monthly",label:"Monthly CAD",render:v=><span style={{fontWeight:700}}>${v.toLocaleString()}</span>},
+        {key:"trend",label:"Trend",render:v=><Trend v={v}/>},
+        {key:"status",label:"Status",render:v=><Pill label={v}/>},
+      ]} rows={custList}/>
+    </div>
+  );
+}
+
+function AtRiskView() {
+  return (
+    <div>
+      <PageHeader title="At Risk Customers" sub={`${atRisk.length} customers need attention`}/>
+      <DataTable cols={[
+        {key:"name",label:"Customer"},
+        {key:"change",label:"4-week Trend",render:v=><Trend v={v}/>},
+        {key:"weeks",label:"Weeks Declining",render:v=><span style={{fontWeight:700}}>{v}w</span>},
+        {key:"last",label:"Last Order"},
+        {key:"status",label:"Status",render:v=><Pill label={v}/>},
+        {key:"name",label:"",render:()=><span style={{color:T.rust,fontWeight:700,cursor:"pointer",fontSize:12}}>Follow up →</span>},
+      ]} rows={atRisk}/>
+    </div>
+  );
+}
+
+// ── Pick List View ─────────────────────────────────────────────────────────────
+function PickListView() {
+  const [checked, setChecked] = useState({});
+  const pickList = [
+    {crop:"Pea Shoots (M)",         units:49,packWt:93, totalG:4557},
+    {crop:"Pea Shoots (L)",         units:21,packWt:220,totalG:4620},
+    {crop:"Pea Shoots (Retail M)",  units:40,packWt:93, totalG:3720},
+    {crop:"Sunflower Shoots (M)",   units:26,packWt:101,totalG:2626},
+    {crop:"Sunflower (Retail M)",   units:43,packWt:101,totalG:4343},
+    {crop:"Radish Blend (M)",       units:12,packWt:98, totalG:1176},
+    {crop:"Radish Blend (L)",       units:14,packWt:238,totalG:3332},
+    {crop:"Cilantro (M)",           units:24,packWt:53, totalG:1272},
+    {crop:"Mellow Mix (L)",         units:10,packWt:208,totalG:2080},
+    {crop:"Spicy Mix (Retail S)",   units:17,packWt:47, totalG:799},
+    {crop:"Basil (S)",              units:14,packWt:17, totalG:238},
+    {crop:"Basil (M)",              units:10,packWt:33, totalG:330},
+    {crop:"Arugula (M)",            units:10,packWt:68, totalG:680},
+    {crop:"Kale (S)",               units:7, packWt:42, totalG:294},
+  ];
+  const done = Object.values(checked).filter(Boolean).length;
+  const totalKg = (pickList.reduce((s,r)=>s+r.totalG,0)/1000).toFixed(1);
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Pick List — Wednesday 28 May</h1>
+          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Pack by 6:30 AM · {done}/{pickList.length} items confirmed · {totalKg} kg total</p>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <span style={{fontSize:28,fontWeight:900,color:T.green}}>{done}/{pickList.length}</span>
+        </div>
+      </div>
+      <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+            {["","Crop / Pack","Units","Pack wt (g)","Total (g)","kg"].map(h=>(
+              <th key={h} style={{textAlign:"left",padding:"10px 16px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>{pickList.map((r,i)=>(
+            <tr key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
+              style={{borderBottom:`1px solid ${T.border}`,background:checked[i]?"#f0f9ec":i%2===0?"#fff":"#fafbfc",cursor:"pointer",transition:"background 0.12s"}}>
+              <td style={{padding:"11px 16px"}}>
+                <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:900}}>
+                  {checked[i]?"✓":""}
+                </div>
+              </td>
+              <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>{r.crop}</td>
+              <td style={{padding:"11px 16px",fontWeight:800,color:T.textMain}}>{r.units}</td>
+              <td style={{padding:"11px 16px",color:T.textSub}}>{r.packWt}</td>
+              <td style={{padding:"11px 16px",color:T.textSub}}>{r.totalG.toLocaleString()}</td>
+              <td style={{padding:"11px 16px",fontWeight:700,color:T.sky}}>{(r.totalG/1000).toFixed(2)}</td>
+            </tr>
+          ))}</tbody>
+          <tfoot><tr style={{background:T.textMain}}>
+            <td colSpan={2} style={{padding:"10px 16px",fontWeight:800,color:"#fff"}}>Total</td>
+            <td style={{padding:"10px 16px",fontWeight:900,color:"#fff",textAlign:"left"}}>{pickList.reduce((s,r)=>s+r.units,0)}</td>
+            <td/>
+            <td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.totalG,0).toLocaleString()}</td>
+            <td style={{padding:"10px 16px",fontWeight:900,color:T.green}}>{totalKg}</td>
+          </tr></tfoot>
+        </table>
+        <div style={{padding:"10px 16px",background:"#fffbeb",borderTop:`1px solid #fde68a`,fontSize:12,color:"#92400e"}}>
+          ⚠ Sunflower Shoots short by 0.7kg vs orders — check trays A-2 before packing
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Calendar View ──────────────────────────────────────────────────────────────
+function CalendarView() {
+  const days = ["Mon","Tue","Wed","Thu","Fri"];
+  const week = [
+    {day:"Mon 26",tasks:[{time:"7:00",label:"Review standing orders",type:"admin"},{time:"9:00",label:"Plant Pea Shoots — 6 trays (A-1)",type:"grow"},{time:"14:00",label:"Confirm Wed orders",type:"admin"}]},
+    {day:"Tue 27",tasks:[{time:"6:30",label:"Harvest prep — check trays",type:"grow"},{time:"7:00",label:"Harvest Wednesday orders",type:"harvest"},{time:"13:00",label:"Pack & label",type:"harvest"}]},
+    {day:"Wed 28",tasks:[{time:"7:00",label:"North Shore run — Sam (🚗)",type:"delivery"},{time:"9:00",label:"Downtown run — Leo (🚲)",type:"delivery"},{time:"11:30",label:"Richmond run — Sam (🚗)",type:"delivery"}]},
+    {day:"Thu 29",tasks:[{time:"9:00",label:"Plant Sunflower — 4 trays (B-2)",type:"grow"},{time:"14:00",label:"Confirm Friday orders",type:"admin"}]},
+    {day:"Fri 30",tasks:[{time:"7:00",label:"Harvest Friday orders",type:"harvest"},{time:"9:00",label:"North Shore + Downtown runs",type:"delivery"}]},
+  ];
+  const typeColors = {admin:{bg:"#e8f0fb",text:"#1a3a7a"},grow:{bg:"#e8f6dc",text:"#2a6010"},harvest:{bg:"#fef3dc",text:"#7a5000"},delivery:{bg:"#fde8e8",text:"#7a1a1a"}};
+  return (
+    <div>
+      <PageHeader title="Weekly Calendar" sub="Week of 26 May 2026 · All activities auto-generated from orders"/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
+        {week.map(day=>(
+          <div key={day.day} style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"10px 14px",background:T.textMain}}>
+              <p style={{fontSize:12,fontWeight:800,color:"#fff",margin:0}}>{day.day}</p>
+            </div>
+            <div style={{padding:10,display:"flex",flexDirection:"column",gap:8}}>
+              {day.tasks.map((t,i)=>(
+                <div key={i} style={{padding:"7px 10px",borderRadius:7,...typeColors[t.type]}}>
+                  <p style={{fontSize:10,fontWeight:700,margin:"0 0 2px",opacity:0.7}}>{t.time}</p>
+                  <p style={{fontSize:11,fontWeight:600,margin:0,lineHeight:1.3}}>{t.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}}>
+        {Object.entries({admin:"Admin",grow:"Growing",harvest:"Harvest",delivery:"Delivery"}).map(([k,l])=>(
+          <div key={k} style={{display:"flex",alignItems:"center",gap:6}}>
+            <div style={{width:10,height:10,borderRadius:2,...typeColors[k]}}/>
+            <span style={{fontSize:11,color:T.textSub}}>{l}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -752,13 +1063,18 @@ function HarvestManagerEmbed() {
 const VIEWS = {
   dashboard:   <DashboardView/>,
   plantings:   <PlantingsView/>,
+  growroom:    <GrowRoomView/>,
   deliveries:  <DeliveriesView/>,
   cert:        <CertView/>,
   harvests:    <HarvestReportView/>,
   roadmap:     <RoadmapView/>,
   trayhealth:  <TrayHealthView/>,
   harvestruns: <HarvestManagerEmbed/>,
-  orderinbox: <div style={{position:"fixed",top:44,left:234,right:0,bottom:0,zIndex:1}}><OrderInbox/></div>,
+  picklist:    <PickListView/>,
+  orderinbox:  <div style={{height:"calc(100vh - 44px)",overflow:"hidden",margin:"-24px"}}><OrderInbox/></div>,
+  customers:   <CustomersView/>,
+  atrisk:      <AtRiskView/>,
+  calendar:    <CalendarView/>,
   legacy: null,
 };
 
