@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 
 const T = {
@@ -367,6 +367,51 @@ const TierBadge=({tier})=>{
   return <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,...s}}>{tier}</span>;
 };
 
+// ── Validation tooltip component ─────────────────────────────────────────────
+function MismatchHelp({calcUnits,sheetUnits}){
+  const [show,setShow] = React.useState(false);
+  const diff = Math.abs(calcUnits - sheetUnits);
+  const over = calcUnits > sheetUnits;
+  return (
+    <span style={{position:"relative",display:"inline-block"}}>
+      <span
+        onMouseEnter={()=>setShow(true)}
+        onMouseLeave={()=>setShow(false)}
+        style={{display:"inline-flex",width:16,height:16,borderRadius:8,
+          background:T.rust,color:"#fff",fontSize:10,fontWeight:900,
+          alignItems:"center",justifyContent:"center",cursor:"help"}}>?</span>
+      {show&&(
+        <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",
+          transform:"translateX(-50%)",width:280,background:"#1a2e3b",
+          borderRadius:10,padding:12,boxShadow:"0 8px 24px rgba(0,0,0,0.3)",
+          zIndex:100,pointerEvents:"none"}}>
+          <p style={{fontSize:12,fontWeight:700,color:"#fff",margin:"0 0 6px"}}>
+            ❌ What does this mismatch mean?
+          </p>
+          <p style={{fontSize:11,color:"#a0b8c8",margin:"0 0 8px",lineHeight:1.6}}>
+            We counted <strong style={{color:"#fff"}}>{calcUnits} packs</strong> from
+            the product rows, but the sheet's own Total row says{" "}
+            <strong style={{color:"#fff"}}>{sheetUnits} packs</strong> — a difference
+            of <strong style={{color:"#fca5a5"}}>{diff} packs</strong>.
+          </p>
+          <p style={{fontSize:11,color:"#a0b8c8",margin:"0 0 8px",lineHeight:1.6}}>
+            {over
+              ? "We found MORE packs than the sheet total. We may be counting a summary or subtotal row that the sheet itself doesn't include."
+              : "We found FEWER packs than the sheet total. Some product rows may have been skipped — possibly because the product name or weight was missing."}
+          </p>
+          <p style={{fontSize:11,fontWeight:700,color:"#86b955",margin:0}}>How to fix:</p>
+          <p style={{fontSize:11,color:"#a0b8c8",margin:"2px 0 0",lineHeight:1.6}}>
+            Open the sheet in Excel, find the Total row (row 134), and check
+            whether the pack count there matches the sum of the individual crop rows
+            above it. If the sheet is correct, the discrepancy may be from rows this
+            app doesn't yet recognise (new products, blank weight cells).
+          </p>
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ── Harvest Report tab (original) ─────────────────────────────────────────────
 function monthKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
 function computeA(sheets,pkFn){
@@ -496,8 +541,14 @@ function HarvestReportTab({sheets}){
                     )}
                     {v.match===true&&<span style={{color:"#2a6010",fontSize:11,fontWeight:700}}>✓ Match</span>}
                     {v.match===false&&(
-                      <span style={{color:T.rust,fontSize:11,fontWeight:700}}>
-                        Difference of {Math.abs(v.calcUnits-(v.sheetUnits||0))} packs — check sheet for manually edited rows
+                      <span style={{position:"relative",display:"inline-flex",alignItems:"center",gap:4}}>
+                        <span style={{color:T.rust,fontSize:11,fontWeight:700}}>
+                          ❌ {Math.abs(v.calcUnits-(v.sheetUnits||0))} pack discrepancy
+                        </span>
+                        <MismatchHelp
+                          calcUnits={v.calcUnits}
+                          sheetUnits={v.sheetUnits||0}
+                        />
                       </span>
                     )}
                     {v.match===null&&<span style={{color:T.amber,fontSize:11}}>Sheet total row not found</span>}
@@ -678,11 +729,11 @@ function ProductInsightsTab({sheets,dateRange}){
   const sorted=useMemo(()=>[...insights.products].sort((a,b)=>{
     if(sortBy==="trend")  return b.trend-a.trend;
     if(sortBy==="wedFri") return b.wedPct-a.wedPct;
-    if(sortBy==="packs")  return b.totalPacks-a.totalPacks;
-    return b.totalKg-a.totalKg; // default: kg
-  }),[insights,sortBy]);
+    // "volume" sort respects the unit toggle
+    return unit==="packs" ? b.totalPacks-a.totalPacks : b.totalKg-a.totalKg;
+  }),[insights,sortBy,unit]);
 
-  const maxVal=unit==="packs"?sorted[0]?.totalPacks||1:sorted[0]?.totalKg||1;
+  const maxVal=unit==="packs" ? (sorted[0]?.totalPacks||1) : (sorted[0]?.totalKg||1);
 
   const maxKg=sorted[0]?.totalKg||1;
 
@@ -697,12 +748,15 @@ function ProductInsightsTab({sheets,dateRange}){
           <div>
             <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:0}}>Product Rankings</p>
             <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>
-              {insights.products.length} products · sorted by {sortBy==="volume"?"total volume":sortBy==="trend"?"growth trend":"Wed/Fri split"}
+              {insights.products.length} products · {sortBy==="volume"
+                ? (unit==="packs" ? "sorted by pack count — highest first" : "sorted by kg harvested — heaviest first")
+                : sortBy==="trend" ? "sorted by recent growth trend"
+                : "sorted by Wednesday/Friday split"}
             </p>
           </div>
-          <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
-              {[["volume","kg ↓"],["packs","Packs ↓"],["trend","Trend"],["wedFri","Wed/Fri"]].map(([k,l])=>(
+              {[["trend","Trend"],["wedFri","Wed/Fri"]].map(([k,l])=>(
                 <button key={k} onClick={()=>setSortBy(k)}
                   style={{padding:"6px 11px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
                     background:sortBy===k?T.sky:"#fff",color:sortBy===k?"#fff":T.textMain}}>
@@ -711,10 +765,11 @@ function ProductInsightsTab({sheets,dateRange}){
               ))}
             </div>
             <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
-              {[["kg","kg"],["packs","Packs"]].map(([k,l])=>(
-                <button key={k} onClick={()=>setUnit(k)}
-                  style={{padding:"6px 10px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
-                    background:unit===k?T.green:"#fff",color:unit===k?"#fff":T.textMain}}>
+              {[["kg","Sort & show: kg"],["packs","Sort & show: Packs"]].map(([k,l])=>(
+                <button key={k} onClick={()=>{setUnit(k);setSortBy("volume");}}
+                  style={{padding:"6px 11px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
+                    background:unit===k&&sortBy==="volume"?T.green:"#fff",
+                    color:unit===k&&sortBy==="volume"?"#fff":T.textMain}}>
                   {l}
                 </button>
               ))}
