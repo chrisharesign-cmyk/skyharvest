@@ -30,6 +30,42 @@ export const T = {
   textSub:    "#5a7080",
 };
 
+// ── Tray store (in-memory, connects planting → grow room → health) ─────────────
+let _trays = [
+  {id:"SH-260505-PEA-0001",crop:"Pea Shoots",planted:"2026-05-05",harvest:"2026-06-02",daysLeft:7,
+   lot:"JSS-ORG-2026-042-PEA",soil:"Mix 3",who:"Maria Chen",shelf:"A-1",status:"On track",
+   fab:false,notes:[],healthHistory:[]},
+  {id:"SH-260512-RAD-0003",crop:"Red Radish",planted:"2026-05-12",harvest:"2026-06-02",daysLeft:7,
+   lot:"MSS-ORG-2026-007-RAD",soil:"Mix 1",who:"Jake Okafor",shelf:"B-1",status:"On track",
+   fab:true,notes:[{by:"Maria Chen",at:"May 21",text:"Looking dense and healthy. Good colour."}],healthHistory:[
+     {date:"May 21",score:88,stage:"Cotyledon expansion",by:"Maria Chen"}
+   ]},
+  {id:"SH-260514-ARU-0004",crop:"Arugula",planted:"2026-05-14",harvest:"2026-06-04",daysLeft:9,
+   lot:"OSC-ORG-2026-018-ARU",soil:"Mix 1",who:"Maria Chen",shelf:"B-3",status:"Watch",
+   fab:true,notes:[{by:"Jake Okafor",at:"May 22",text:"⚠ Stems looking a bit leggy on the right side. Possible uneven light."}],healthHistory:[
+     {date:"May 22",score:72,stage:"First true leaves",by:"Jake Okafor"}
+   ]},
+  {id:"SH-260505-SUN-0002",crop:"Sunflower Shoots",planted:"2026-05-05",harvest:"2026-06-02",daysLeft:7,
+   lot:"WCS-ORG-2026-001-SUN",soil:"Mix 3",who:"Maria Chen",shelf:"A-2",status:"On track",
+   fab:true,notes:[],healthHistory:[]},
+];
+let _trayListeners = new Set();
+function getTrayStore() { return [..._trays]; }
+function subscribeTrayStore(fn) { _trayListeners.add(fn); return ()=>_trayListeners.delete(fn); }
+function notifyTray() { _trayListeners.forEach(fn=>fn([..._trays])); }
+function addTray(tray) {
+  _trays = [tray, ..._trays];
+  notifyTray();
+}
+function addTrayNote(trayId, note) {
+  _trays = _trays.map(t=>t.id===trayId?{...t,notes:[...t.notes,note]}:t);
+  notifyTray();
+}
+function addTrayHealth(trayId, health) {
+  _trays = _trays.map(t=>t.id===trayId?{...t,healthHistory:[...t.healthHistory,health],status:health.score>=80?"On track":health.score>=60?"Watch":"Concern"}:t);
+  notifyTray();
+}
+
 // ── Nav structure ──────────────────────────────────────────────────────────────
 const NAV = [
   { section: "OVERVIEW", items: [
@@ -407,25 +443,178 @@ function DashboardView(){
 }
 
 function PlantingsView(){
+  const [trays, setTrays] = useState(getTrayStore());
+  const [step, setStep] = useState(0); // 0=list, 1=seed, 2=plant, 3=done
+  const [form, setForm] = useState({crop:"Pea Shoots",lot:"",supplier:"West Coast Seeds",soil:"Mix 3",qty:4,shelf:"",who:"Maria Chen",cert:null});
+  const [selectedTray, setSelectedTray] = useState(null);
+
+  useEffect(()=>{ return subscribeTrayStore(t=>setTrays([...t])); },[]);
+
+  const CROPS_P = ["Pea Shoots","Sunflower Shoots","Red Radish","Arugula","Kale","Cilantro","Mustard","Broccoli","Beets","Purple Cabbage","Basil","Shiso","Sky Hearts","Peppercress","Mellow Mix","Spicy Mix"];
+  const CYCLE = {"Pea Shoots":28,"Sunflower Shoots":28,"Red Radish":21,"Arugula":21,"Kale":28,"Cilantro":28,"Mustard":21,"Broccoli":21,"Beets":28,"Purple Cabbage":28,"Basil":21,"Shiso":28,"Sky Hearts":14,"Peppercress":21};
+
+  const handlePlant = () => {
+    const today = new Date();
+    const harvest = new Date(today);
+    harvest.setDate(harvest.getDate() + (CYCLE[form.crop]||21));
+    const id = `SH-${today.toISOString().slice(2,10).replace(/-/g,"")}-${form.crop.slice(0,3).toUpperCase()}-${String(Math.floor(Math.random()*9000)+1000)}`;
+    addTray({
+      id, crop:form.crop, planted:today.toISOString().slice(0,10),
+      harvest:harvest.toISOString().slice(0,10),
+      daysLeft:CYCLE[form.crop]||21,
+      lot:form.lot, soil:form.soil, who:form.who, shelf:form.shelf,
+      status:"On track", fab:false, notes:[], healthHistory:[],
+      certUploaded:!!form.cert,
+    });
+    setStep(3);
+  };
+
+  if (step === 1) return (
+    <div style={{maxWidth:520}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+        <button onClick={()=>setStep(0)} style={{background:"none",border:"none",cursor:"pointer",color:T.sky,fontSize:13,fontWeight:700}}>← Back</button>
+        <h1 style={{fontSize:20,fontWeight:800,color:T.textMain,margin:0}}>Step 1 — Seed Lot &amp; Organic Certificate</h1>
+      </div>
+      <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:20,marginBottom:16}}>
+        <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 14px"}}>Which crop are you planting?</p>
+        <select value={form.crop} onChange={e=>setForm(p=>({...p,crop:e.target.value}))}
+          style={{width:"100%",padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:14,fontWeight:600,marginBottom:14,background:"#f8fafb"}}>
+          {CROPS_P.map(c=><option key={c}>{c}</option>)}
+        </select>
+        <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 10px"}}>Seed supplier</p>
+        <select value={form.supplier} onChange={e=>setForm(p=>({...p,supplier:e.target.value}))}
+          style={{width:"100%",padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,marginBottom:14,background:"#f8fafb"}}>
+          {["West Coast Seeds","Johnny's Selected Seeds","OSC Seeds","Mumm's Sprouting Seeds","Veseys Seeds"].map(s=><option key={s}>{s}</option>)}
+        </select>
+        <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 6px"}}>Seed lot number</p>
+        <input value={form.lot} onChange={e=>setForm(p=>({...p,lot:e.target.value}))} placeholder="e.g. WCS-ORG-2026-001"
+          style={{width:"100%",padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,marginBottom:16,boxSizing:"border-box"}}/>
+      </div>
+      <div style={{background:T.surface,borderRadius:12,border:`2px dashed ${form.cert?"#86b955":T.border}`,padding:20,marginBottom:16}}>
+        <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 10px"}}>Upload organic seed certificate (BCCOP requirement)</p>
+        {form.cert ? (
+          <div style={{display:"flex",gap:10,alignItems:"center",padding:10,background:"#f0f9ec",borderRadius:8,border:"1px solid #c8e8a8"}}>
+            <span style={{fontSize:20}}>📄</span>
+            <div style={{flex:1}}>
+              <p style={{fontSize:12,fontWeight:700,color:"#2a6010",margin:0}}>{form.cert}</p>
+              <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>Certificate uploaded ✓</p>
+            </div>
+            <button onClick={()=>setForm(p=>({...p,cert:null}))} style={{background:"none",border:"none",cursor:"pointer",color:T.textSub,fontSize:14}}>✕</button>
+          </div>
+        ) : (
+          <label style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer",padding:20}}>
+            <span style={{fontSize:36}}>📋</span>
+            <span style={{fontSize:13,fontWeight:700,color:T.sky}}>Tap to upload certificate PDF</span>
+            <span style={{fontSize:11,color:T.textSub}}>Pro-Cert, MOFGA, COABC or equivalent</span>
+            <input type="file" accept=".pdf,.jpg,.png" style={{display:"none"}}
+              onChange={e=>setForm(p=>({...p,cert:e.target.files[0]?.name||"certificate.pdf"}))}/>
+          </label>
+        )}
+      </div>
+      <div style={{padding:10,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,fontSize:12,color:"#92400e",marginBottom:16}}>
+        <strong>BCCOP v2 requirement:</strong> Organic seed certificate must be on file before planting. If organic seed is unavailable, a documented search must be uploaded instead.
+      </div>
+      <button onClick={()=>setStep(2)} disabled={!form.lot}
+        style={{width:"100%",padding:14,background:form.lot?T.sky:"#c8d8e8",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:form.lot?"pointer":"not-allowed"}}>
+        Next — Planting Details →
+      </button>
+    </div>
+  );
+
+  if (step === 2) return (
+    <div style={{maxWidth:520}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+        <button onClick={()=>setStep(1)} style={{background:"none",border:"none",cursor:"pointer",color:T.sky,fontSize:13,fontWeight:700}}>← Back</button>
+        <h1 style={{fontSize:20,fontWeight:800,color:T.textMain,margin:0}}>Step 2 — Planting Details</h1>
+      </div>
+      <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:20,marginBottom:16}}>
+        {[
+          {label:"Soil mix",field:"soil",type:"select",opts:["Mix 1 — Coco Coir/Perlite 70/30","Mix 2 — Coco Coir/Vermiculite 80/20","Mix 3 — Premium Microgreen Mix"]},
+          {label:"Tray count",field:"qty",type:"number"},
+          {label:"Shelf location",field:"shelf",type:"text",placeholder:"e.g. A-1"},
+          {label:"Planted by",field:"who",type:"select",opts:["Maria Chen","Jake Okafor","Sam Wright","Chris Arthur"]},
+        ].map(f=>(
+          <div key={f.field} style={{marginBottom:14}}>
+            <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 6px"}}>{f.label}</p>
+            {f.type==="select"?(
+              <select value={form[f.field]} onChange={e=>setForm(p=>({...p,[f.field]:e.target.value}))}
+                style={{width:"100%",padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,background:"#f8fafb"}}>
+                {f.opts.map(o=><option key={o}>{o}</option>)}
+              </select>
+            ):(
+              <input type={f.type} value={form[f.field]} onChange={e=>setForm(p=>({...p,[f.field]:e.target.value}))}
+                placeholder={f.placeholder||""}
+                style={{width:"100%",padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
+            )}
+          </div>
+        ))}
+        <div style={{padding:12,background:"#f0f6fb",borderRadius:8,border:`1px solid ${T.border}`,marginTop:8}}>
+          <p style={{fontSize:11,fontWeight:700,color:T.sky,margin:"0 0 4px"}}>Barcode will be generated automatically</p>
+          <p style={{fontSize:12,color:T.textSub,margin:0,fontFamily:"monospace"}}>SH-{new Date().toISOString().slice(2,10).replace(/-/g,"")}-{form.crop.slice(0,3).toUpperCase()}-XXXX</p>
+        </div>
+      </div>
+      <button onClick={handlePlant} disabled={!form.shelf}
+        style={{width:"100%",padding:14,background:form.shelf?T.green:"#c8d8e8",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:form.shelf?"pointer":"not-allowed"}}>
+        🌱 Plant Tray &amp; Generate Barcode
+      </button>
+    </div>
+  );
+
+  if (step === 3) {
+    const newest = trays[0];
+    return (
+      <div style={{maxWidth:520}}>
+        <div style={{background:T.surface,borderRadius:12,border:`2px solid ${T.green}`,padding:24,textAlign:"center",marginBottom:16}}>
+          <p style={{fontSize:48,margin:"0 0 12px"}}>✅</p>
+          <h2 style={{fontSize:18,fontWeight:900,color:T.textMain,margin:"0 0 6px"}}>Tray planted successfully</h2>
+          <p style={{fontSize:13,color:T.textSub,margin:"0 0 16px"}}>Barcode generated and added to grow room</p>
+          <div style={{background:"#f0f9ec",borderRadius:8,padding:12,marginBottom:16}}>
+            <p style={{fontSize:11,fontWeight:700,color:T.textSub,margin:"0 0 4px",textTransform:"uppercase",letterSpacing:"0.06em"}}>Barcode ID</p>
+            <p style={{fontSize:18,fontWeight:900,color:T.textMain,fontFamily:"monospace",margin:0}}>{newest?.id}</p>
+          </div>
+          {form.cert && <p style={{fontSize:12,color:"#2a6010",fontWeight:600,margin:"0 0 16px"}}>✓ Organic certificate uploaded — BCCOP audit trail started</p>}
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>{setStep(0);setForm({crop:"Pea Shoots",lot:"",supplier:"West Coast Seeds",soil:"Mix 3",qty:4,shelf:"",who:"Maria Chen",cert:null});}}
+              style={{flex:1,padding:12,background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              Plant another tray
+            </button>
+            <button onClick={()=>setStep(0)}
+              style={{flex:1,padding:12,background:"#fff",color:T.textMain,border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              View all trays
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return(
     <div>
-      <PageHeader title="Planting Records" sub="Tray barcodes · seed lots · organic chain of custody" action="+ Log Planting"/>
-      <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 14px",marginBottom:16,fontSize:12,color:"#9a3412"}}>
-        ⚠ Planting records below are <strong style={{color:"#b91c1c"}}>fabricated</strong> using realistic seed lot numbers and supplier names to demonstrate the organic audit trail. Real records entered when barcode scanner is live.
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Planting Records</h1>
+          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Tray barcodes · seed lots · organic chain of custody</p>
+        </div>
+        <button onClick={()=>setStep(1)} style={{background:T.green,color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Plant Tray</button>
       </div>
+      {trays.some(t=>t.fab) && (
+        <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 14px",marginBottom:14,fontSize:12,color:"#9a3412"}}>
+          ⚠ Some records are <strong style={{color:"#b91c1c"}}>fabricated demo data</strong> (shown in red italic). Real records appear when trays are planted using the + Plant Tray flow.
+        </div>
+      )}
       <DataTable
         cols={[
-          {key:"id",label:"Barcode ID",render:(v,r)=><span style={{fontFamily:"monospace",fontSize:11,color:r.fab?T.rust:T.sky}}>{v}</span>},
+          {key:"id",label:"Barcode ID",render:(v,r)=><span style={{fontFamily:"monospace",fontSize:11,color:r.fab?T.rust:T.sky,fontStyle:r.fab?"italic":"normal"}}>{v}</span>},
           {key:"crop",label:"Crop"},
           {key:"planted",label:"Planted",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
-          {key:"harvest",label:"Est. Harvest",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
+          {key:"daysLeft",label:"Days Left",render:v=><span style={{fontWeight:700,color:v<=3?T.green:T.textMain}}>{v}d</span>},
           {key:"lot",label:"Seed Lot",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
-          {key:"soil",label:"Soil Mix",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
           {key:"who",label:"Planted By",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
           {key:"shelf",label:"Shelf",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
+          {key:"notes",label:"Notes",render:(v,r)=><span style={{fontSize:11,color:T.textSub}}>{v.length>0?`${v.length} note${v.length>1?"s":""}`:"—"}</span>},
           {key:"status",label:"Status",render:v=><Pill label={v}/>},
         ]}
-        rows={plantings}
+        rows={trays}
       />
     </div>
   );
@@ -636,10 +825,25 @@ function RoadmapView(){
 }
 
 function TrayHealthView(){
+  const [trays] = useState(getTrayStore());
+  const [selectedTrayId, setSelectedTrayId] = useState("");
   const [photo,setPhoto]=useState(null);
   const [photoData,setPhotoData]=useState(null);
   const [crop,setCrop]=useState("Pea Shoots");
   const [daysSince,setDaysSince]=useState(14);
+
+  // When a tray is selected, pre-fill crop and days
+  const handleTraySelect = (trayId) => {
+    setSelectedTrayId(trayId);
+    const tray = trays.find(t=>t.id===trayId);
+    if (tray) {
+      setCrop(tray.crop);
+      const planted = new Date(tray.planted);
+      const today = new Date();
+      const days = Math.floor((today-planted)/(1000*60*60*24));
+      setDaysSince(Math.min(days, 28));
+    }
+  };
   const [loading,setLoading]=useState(false);
   const [result,setResult]=useState(null);
   const [error,setError]=useState(null);
@@ -660,6 +864,15 @@ function TrayHealthView(){
       const data=await r.json();
       if(data.error)throw new Error(data.error);
       setResult(data);
+      // Save to tray health history if a tray was selected
+      if (selectedTrayId && data.health_score) {
+        addTrayHealth(selectedTrayId, {
+          date: new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"}),
+          score: data.health_score,
+          stage: data.stage || "Assessed",
+          by: "Camera scan",
+        });
+      }
     }catch(e){setError(e.message||"Analysis failed");}
     setLoading(false);
   };
@@ -688,7 +901,16 @@ function TrayHealthView(){
             </div>
           </div>
           <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:20}}>
-            <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 14px"}}>Step 2 · Crop Details</p>
+            <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 14px"}}>Step 2 · Tray &amp; Crop Details</p>
+            <div style={{marginBottom:12}}>
+              <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",margin:"0 0 5px"}}>Link to tray (optional)</p>
+              <select value={selectedTrayId} onChange={e=>handleTraySelect(e.target.value)}
+                style={{width:"100%",padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:12,background:"#f8fafb",marginBottom:2}}>
+                <option value="">— Choose tray or enter manually —</option>
+                {trays.map(t=><option key={t.id} value={t.id}>{t.crop} — {t.id} (Shelf {t.shelf})</option>)}
+              </select>
+              {selectedTrayId && <p style={{fontSize:10,color:T.green,margin:"3px 0 0",fontWeight:600}}>✓ Crop and days pre-filled from tray record. Health result will save to tray history.</p>}
+            </div>
             <select value={crop} onChange={e=>setCrop(e.target.value)} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid ${T.border}`,fontSize:13,fontWeight:600,marginBottom:14,background:"#f8fafb"}}>
               {CROPS_H.map(c=><option key={c.name}>{c.name}</option>)}
             </select>
@@ -785,157 +1007,198 @@ function HarvestManagerEmbed() {
 
 // ── Grow Room View ─────────────────────────────────────────────────────────────
 function GrowRoomView() {
+  const [trays, setTrays] = useState(getTrayStore());
   const [scanInput, setScanInput] = useState("");
   const [scannedTray, setScannedTray] = useState(null);
-  const [scanHistory, setScanHistory] = useState([]);
+  const [note, setNote] = useState("");
+  const [showNoteInput, setShowNoteInput] = useState(false);
 
-  const TRAYS = plantings; // reuse fabricated plantings data
+  useEffect(()=>{ return subscribeTrayStore(t=>setTrays([...t])); },[]);
 
   const handleScan = (e) => {
-    e.preventDefault();
-    const tray = TRAYS.find(t => t.id.toLowerCase() === scanInput.toLowerCase()) || TRAYS[Math.floor(Math.random()*TRAYS.length)];
-    const result = {...tray, scannedAt: new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})};
-    setScannedTray(result);
-    setScanHistory(prev => [result, ...prev].slice(0,5));
-    setScanInput("");
+    if (e) e.preventDefault();
+    const found = trays.find(t=>t.id.toLowerCase()===scanInput.toLowerCase().trim());
+    if (found) { setScannedTray(found); setScanInput(""); }
+    else {
+      // Fuzzy: pick first tray with matching crop prefix
+      const prefix = scanInput.toUpperCase().slice(0,3);
+      const fuzzy = trays.find(t=>t.id.includes(prefix)) || trays[0];
+      setScannedTray(fuzzy); setScanInput("");
+    }
   };
+
+  const handleAddNote = () => {
+    if (!note.trim() || !scannedTray) return;
+    const n = {by:"Maria Chen",at:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"}),text:note};
+    addTrayNote(scannedTray.id, n);
+    setNote(""); setShowNoteInput(false);
+    // Refresh scanned tray
+    setScannedTray(t=>({...t,notes:[...t.notes,n]}));
+  };
+
+  const statusColor = (s) => s==="On track"?{bg:"#e8f6dc",c:"#2a6010"}:s==="Watch"?{bg:"#fef3dc",c:"#7a5000"}:{bg:"#fde8e8",c:"#7a1a1a"};
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-        <div>
-          <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Grow Room</h1>
-          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Scan a tray barcode to pull up its full planting record instantly</p>
-        </div>
-      </div>
+      <PageHeader title="Grow Room" sub="Scan a tray barcode to see its full record, history and health"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        {/* Scanner */}
+        {/* Scanner + tray list */}
         <div>
           <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:16}}>
-            <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+            <div style={{padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
               <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Barcode Scanner</p>
             </div>
-            <div style={{padding:20}}>
-              <div style={{background:"#1a2e3b",borderRadius:10,padding:20,marginBottom:16,textAlign:"center"}}>
-                <p style={{fontSize:36,margin:"0 0 8px"}}>📷</p>
-                <p style={{fontSize:12,color:"#86b955",fontWeight:700,margin:"0 0 4px"}}>Camera ready</p>
-                <p style={{fontSize:11,color:"#5a8aaa",margin:0}}>Point at tray barcode to scan</p>
-                <p style={{fontSize:10,color:"#4a6a80",margin:"8px 0 0",fontStyle:"italic"}}>Browser barcode scanning — no hardware needed</p>
+            <div style={{padding:16}}>
+              <div style={{background:"#1a2e3b",borderRadius:10,padding:16,marginBottom:14,textAlign:"center",minHeight:80,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:6}}>
+                <span style={{fontSize:28}}>📷</span>
+                <p style={{fontSize:11,color:"#86b955",fontWeight:700,margin:0}}>Camera ready — scan tray barcode</p>
+                <p style={{fontSize:10,color:"#4a6a80",margin:0}}>No hardware needed — uses phone camera</p>
               </div>
-              <p style={{fontSize:11,color:T.textSub,textAlign:"center",margin:"0 0 10px"}}>Or type barcode manually:</p>
               <form onSubmit={handleScan} style={{display:"flex",gap:8}}>
                 <input value={scanInput} onChange={e=>setScanInput(e.target.value)}
-                  placeholder="e.g. SH-260505-PEA-0001"
+                  placeholder="Type or scan barcode ID…"
                   style={{flex:1,padding:"9px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:12,outline:"none"}}/>
-                <button type="submit" style={{padding:"9px 16px",background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                  Scan
-                </button>
+                <button type="submit" style={{padding:"9px 14px",background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Go</button>
               </form>
             </div>
           </div>
-          {/* Scan history */}
-          {scanHistory.length > 0 && (
-            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-              <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`}}>
-                <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Recent Scans</p>
-              </div>
-              {scanHistory.map((t,i)=>(
-                <div key={i} onClick={()=>setScannedTray(t)}
-                  style={{padding:"10px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:12,alignItems:"center",cursor:"pointer"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
-                  onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                  <span style={{fontSize:18}}>🌱</span>
-                  <div style={{flex:1}}>
-                    <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{t.crop}</p>
-                    <p style={{fontSize:10,color:T.textSub,margin:"1px 0 0",fontFamily:"monospace"}}>{t.id}</p>
-                  </div>
-                  <span style={{fontSize:10,color:T.textSub}}>{t.scannedAt}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tray record */}
-        <div>
-          {scannedTray ? (
-            <div style={{background:T.surface,borderRadius:12,border:`2px solid ${T.sky}`,overflow:"hidden"}}>
-              <div style={{padding:"14px 20px",background:`linear-gradient(135deg,${T.textMain},${T.sky})`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div>
-                  <p style={{fontSize:10,fontWeight:700,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record</p>
-                  <h3 style={{fontSize:16,fontWeight:900,color:"#fff",margin:"2px 0 0"}}>{scannedTray.crop}</h3>
-                </div>
-                <span style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:10,background:scannedTray.status==="On track"?"rgba(134,185,85,0.3)":"rgba(212,137,10,0.3)",color:scannedTray.status==="On track"?"#86b955":"#d4890a"}}>
-                  {scannedTray.status}
-                </span>
-              </div>
-              <div style={{padding:20}}>
-                {[
-                  ["Barcode ID",   scannedTray.id,        true],
-                  ["Planted",      scannedTray.planted,   false],
-                  ["Est. Harvest", scannedTray.harvest,   false],
-                  ["Seed Lot",     scannedTray.lot,       true],
-                  ["Soil Mix",     scannedTray.soil,      true],
-                  ["Planted By",   scannedTray.who,       true],
-                  ["Shelf",        scannedTray.shelf,     false],
-                ].map(([label, value, isFab]) => (
-                  <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
-                    <span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</span>
-                    <span style={{fontSize:12,fontWeight:600,color:isFab?T.rust:T.textMain,fontStyle:isFab?"italic":"normal"}}>{value}</span>
-                  </div>
-                ))}
-                <div style={{marginTop:16,display:"flex",gap:8}}>
-                  <button style={{flex:1,padding:"9px",background:T.green,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                    🤖 Analyse Health
-                  </button>
-                  <button style={{flex:1,padding:"9px",background:"#fff",color:T.rust,border:`1px solid ${T.rust}`,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                    ⚠ Flag Concern
-                  </button>
-                </div>
-                <div style={{marginTop:10,padding:10,background:"#f8fafb",borderRadius:8,border:`1px solid ${T.border}`}}>
-                  <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",margin:"0 0 6px"}}>Voice Memo</p>
-                  <button style={{width:"100%",padding:"7px",background:"#fff",border:`1px dashed ${T.border}`,borderRadius:6,fontSize:11,color:T.textSub,cursor:"pointer"}}>
-                    🎙 Tap to record observation
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:40,textAlign:"center",color:T.textSub}}>
-              <p style={{fontSize:36,margin:"0 0 12px"}}>📦</p>
-              <p style={{fontSize:14,fontWeight:700,color:T.textMain,margin:"0 0 6px"}}>Scan a tray to see its record</p>
-              <p style={{fontSize:12,margin:0,lineHeight:1.6}}>All planting data, seed lot, soil mix, organic certification details and tray health history will appear here instantly.</p>
-            </div>
-          )}
-
-          {/* Current trays overview */}
-          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginTop:16}}>
-            <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`}}>
-              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>All Growing Trays — {plantings.length} active</p>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>All Trays ({trays.length})</p>
             </div>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-                {["Crop","Shelf","Days Left","Status"].map(h=>(
-                  <th key={h} style={{textAlign:"left",padding:"7px 14px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+                {["Crop","Shelf","Days","Status","Notes"].map(h=>(
+                  <th key={h} style={{textAlign:"left",padding:"7px 12px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
                 ))}
               </tr></thead>
-              <tbody>{plantings.map((t,i)=>(
-                <tr key={t.id} onClick={()=>setScannedTray({...t,scannedAt:new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})})}
-                  style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc",cursor:"pointer"}}
+              <tbody>{trays.map((t,i)=>(
+                <tr key={t.id} onClick={()=>setScannedTray(t)}
+                  style={{borderBottom:`1px solid ${T.border}`,background:scannedTray?.id===t.id?"#f0f7ff":i%2===0?"#fff":"#fafbfc",cursor:"pointer"}}
                   onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
-                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafbfc"}>
-                  <td style={{padding:"8px 14px",fontWeight:600,color:T.textMain}}>{t.crop}</td>
-                  <td style={{padding:"8px 14px",color:T.textSub,fontFamily:"monospace",fontSize:11}}>{t.shelf}</td>
-                  <td style={{padding:"8px 14px"}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,
+                  onMouseLeave={e=>e.currentTarget.style.background=scannedTray?.id===t.id?"#f0f7ff":i%2===0?"#fff":"#fafbfc"}>
+                  <td style={{padding:"8px 12px",fontWeight:600,color:t.fab?T.rust:T.textMain,fontStyle:t.fab?"italic":"normal"}}>{t.crop}</td>
+                  <td style={{padding:"8px 12px",fontFamily:"monospace",fontSize:11,color:T.textSub}}>{t.shelf}</td>
+                  <td style={{padding:"8px 12px"}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:8,
                       background:t.daysLeft<=3?"#e8f6dc":t.daysLeft<=6?"#fef3dc":"#f0f0f0",
                       color:t.daysLeft<=3?T.green:t.daysLeft<=6?T.amber:"#666"}}>{t.daysLeft}d</span>
                   </td>
-                  <td style={{padding:"8px 14px"}}><span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,background:t.status==="On track"?"#e8f6dc":t.status==="Watch"?"#fef3dc":"#fde8e8",color:t.status==="On track"?T.green:t.status==="Watch"?T.amber:T.rust}}>{t.status}</span></td>
+                  <td style={{padding:"8px 12px"}}>
+                    <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,...statusColor(t.status)}}>{t.status}</span>
+                  </td>
+                  <td style={{padding:"8px 12px",color:T.textSub,fontSize:11}}>
+                    {t.notes.length>0?<span style={{color:t.notes.some(n=>n.text.includes("⚠"))?T.rust:T.textSub,fontWeight:t.notes.some(n=>n.text.includes("⚠"))?700:400}}>{t.notes.length} note{t.notes.length>1?"s":""}</span>:"—"}
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
+        </div>
+
+        {/* Tray detail panel */}
+        <div>
+          {scannedTray ? (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {/* Header card */}
+              <div style={{background:T.surface,borderRadius:12,border:`2px solid ${T.sky}`,overflow:"hidden"}}>
+                <div style={{padding:"14px 20px",background:`linear-gradient(135deg,${T.textMain},${T.sky})`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <p style={{fontSize:10,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record</p>
+                    <h3 style={{fontSize:16,fontWeight:900,color:"#fff",margin:"2px 0 0"}}>{scannedTray.crop}</h3>
+                    <p style={{fontSize:10,fontFamily:"monospace",color:"#86b9d0",margin:"2px 0 0"}}>{scannedTray.id}</p>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:10,...statusColor(scannedTray.status)}}>{scannedTray.status}</span>
+                </div>
+                <div style={{padding:16}}>
+                  {[
+                    ["Planted",scannedTray.planted,false],
+                    ["Est. Harvest",scannedTray.harvest,false],
+                    ["Days Left",`${scannedTray.daysLeft} days`,false],
+                    ["Seed Lot",scannedTray.lot,scannedTray.fab],
+                    ["Soil Mix",scannedTray.soil,scannedTray.fab],
+                    ["Planted By",scannedTray.who,scannedTray.fab],
+                    ["Shelf",scannedTray.shelf,false],
+                    ["Cert Uploaded",scannedTray.certUploaded?"✓ Yes":"Not yet",false],
+                  ].map(([label,val,isFab])=>(
+                    <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
+                      <span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</span>
+                      <span style={{fontSize:12,fontWeight:600,color:isFab?T.rust:T.textMain,fontStyle:isFab?"italic":"normal"}}>{val}</span>
+                    </div>
+                  ))}
+                  <div style={{marginTop:12,display:"flex",gap:8}}>
+                    <button onClick={()=>document.getElementById("nav-trayhealth")?.click()||setShowNoteInput(false)}
+                      style={{flex:1,padding:"8px",background:T.green,color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                      🤖 Analyse Health
+                    </button>
+                    <button onClick={()=>setShowNoteInput(p=>!p)}
+                      style={{flex:1,padding:"8px",background:"#fff",color:T.sky,border:`1px solid ${T.sky}`,borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                      📝 Add Note
+                    </button>
+                  </div>
+                  {showNoteInput && (
+                    <div style={{marginTop:10}}>
+                      <textarea value={note} onChange={e=>setNote(e.target.value)}
+                        placeholder="e.g. ⚠ Soft stems on left side, possible overwater. OR: Excellent density, uniform germination."
+                        rows={3} style={{width:"100%",padding:"8px 10px",border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,resize:"none",boxSizing:"border-box"}}/>
+                      <div style={{display:"flex",gap:6,marginTop:6}}>
+                        <button onClick={handleAddNote} style={{flex:1,padding:"7px",background:T.sky,color:"#fff",border:"none",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>Save Note</button>
+                        <button onClick={()=>{setShowNoteInput(false);setNote("");}} style={{padding:"7px 12px",background:"#fff",color:T.textSub,border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,cursor:"pointer"}}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes history */}
+              <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}>
+                  <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Notes &amp; Observations ({scannedTray.notes.length})</p>
+                </div>
+                {scannedTray.notes.length===0 ? (
+                  <p style={{fontSize:12,color:T.textSub,padding:"14px 16px",margin:0,fontStyle:"italic"}}>No notes yet. Add an observation above.</p>
+                ) : (
+                  <div style={{padding:12,display:"flex",flexDirection:"column",gap:8}}>
+                    {scannedTray.notes.map((n,i)=>(
+                      <div key={i} style={{padding:10,background:n.text.includes("⚠")?"#fff5f5":"#f8fafb",borderRadius:8,border:`1px solid ${n.text.includes("⚠")?"#fca5a5":T.border}`}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                          <span style={{fontSize:11,fontWeight:700,color:T.textMain}}>{n.by}</span>
+                          <span style={{fontSize:10,color:T.textSub}}>{n.at}</span>
+                        </div>
+                        <p style={{fontSize:12,color:T.textMain,margin:0,lineHeight:1.5}}>{n.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Health history */}
+              {scannedTray.healthHistory.length > 0 && (
+                <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                  <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}>
+                    <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Health History ({scannedTray.healthHistory.length})</p>
+                  </div>
+                  {scannedTray.healthHistory.map((h,i)=>(
+                    <div key={i} style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:40,height:40,borderRadius:20,background:h.score>=80?"#e8f6dc":h.score>=60?"#fef3dc":"#fde8e8",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <span style={{fontSize:14,fontWeight:900,color:h.score>=80?T.green:h.score>=60?T.amber:T.rust}}>{h.score}</span>
+                      </div>
+                      <div style={{flex:1}}>
+                        <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{h.stage}</p>
+                        <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>{h.date} · {h.by}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:40,textAlign:"center",color:T.textSub}}>
+              <p style={{fontSize:36,margin:"0 0 12px"}}>📦</p>
+              <p style={{fontSize:14,fontWeight:700,color:T.textMain,margin:"0 0 6px"}}>Select or scan a tray</p>
+              <p style={{fontSize:12,margin:0,lineHeight:1.6}}>Click any tray in the list, or type/scan its barcode above. Full planting record, organic cert status, notes, and health history will appear here.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1120,12 +1383,36 @@ const VIEWS = {
 
 const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+// ── Mobile bottom nav items (5 key destinations) ────────────────────────────
+const MOBILE_NAV = [
+  {id:"dashboard",  icon:"🏠", label:"Home"},
+  {id:"orderinbox", icon:"📬", label:"Orders"},
+  {id:"harvestruns",icon:"📋", label:"Harvest"},
+  {id:"picklist",   icon:"✅", label:"Pick List"},
+  {id:"_more",      icon:"☰",  label:"More"},
+];
+
 export default function SkyHarvestMIS() {
   const [active, setActive] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handleNav = (id) => {
+    if (id === "_more") { setMobileMenuOpen(p=>!p); return; }
+    setActive(id);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <div style={{display:"flex",height:"100vh",overflow:"hidden",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
-      {/* Sidebar */}
-      <div style={{width:234,background:T.sidebar,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
+      {/* Sidebar — desktop only */}
+      {!isMobile && <div style={{width:234,background:T.sidebar,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
         <div style={{padding:"16px 16px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${T.green},${T.sky})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",flexShrink:0}}>SH</div>
@@ -1161,18 +1448,75 @@ export default function SkyHarvestMIS() {
           </div>
           <span style={{color:T.textDim,fontSize:14,cursor:"pointer"}}>↪</span>
         </div>
-      </div>
+      </div>}
+
+      {/* Mobile slide-up menu */}
+      {isMobile && mobileMenuOpen && (
+        <div style={{position:"fixed",inset:0,zIndex:200}} onClick={()=>setMobileMenuOpen(false)}>
+          <div style={{position:"absolute",bottom:64,left:0,right:0,background:T.sidebar,borderRadius:"16px 16px 0 0",padding:"16px 0 8px",boxShadow:"0 -8px 32px rgba(0,0,0,0.4)"}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{width:36,height:4,borderRadius:2,background:"rgba(255,255,255,0.2)",margin:"0 auto 12px"}}/>
+            {NAV.map(section=>(
+              <div key={section.section}>
+                <p style={{fontSize:10,fontWeight:700,color:T.label,letterSpacing:"0.1em",padding:"8px 20px 4px",margin:0,textTransform:"uppercase"}}>{section.section}</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,padding:"0 8px"}}>
+                  {section.items.map(item=>(
+                    <button key={item.id} onClick={()=>handleNav(item.id)}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",background:active===item.id?T.activeBg:"transparent",
+                        border:"none",cursor:"pointer",borderRadius:8,textAlign:"left",width:"100%"}}>
+                      <span style={{fontSize:16}}>{item.icon}</span>
+                      <span style={{fontSize:12,fontWeight:active===item.id?700:500,color:active===item.id?"#fff":T.text}}>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div style={{height:8}}/>
+          </div>
+        </div>
+      )}
+
       {/* Main */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 24px",height:44,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-          <div/>
-          <p style={{fontSize:12,fontWeight:600,color:T.textSub,margin:0}}>Sky Harvest Microgreens · Vancouver</p>
+        <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 16px",height:44,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          {isMobile ? (
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:28,height:28,borderRadius:6,background:`linear-gradient(135deg,${T.green},${T.sky})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,color:"#fff"}}>SH</div>
+              <span style={{fontSize:13,fontWeight:800,color:T.textMain}}>Sky Harvest</span>
+            </div>
+          ) : <div/>}
+          {!isMobile && <p style={{fontSize:12,fontWeight:600,color:T.textSub,margin:0}}>Sky Harvest Microgreens · Vancouver</p>}
           <p style={{fontSize:11,color:T.textSub,margin:0}}>Week of <strong style={{color:T.textMain}}>26 May 2026</strong></p>
         </div>
-        <div style={{flex:1,overflowY:"auto",background:T.bg,padding:active==="harvestruns"?0:24}}>
+        <div style={{flex:1,overflowY:"auto",background:T.bg,
+          padding:active==="harvestruns"||active==="orderinbox"?0:isMobile?"16px":24,
+          paddingBottom:isMobile&&active!=="harvestruns"&&active!=="orderinbox"?"80px":undefined}}>
           {active==="legacy" ? <LegacySiteView navigate={setActive}/> : (VIEWS[active]||<DashboardView/>)}
         </div>
       </div>
+
+      {/* Mobile bottom nav bar */}
+      {isMobile && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,background:T.sidebar,
+          borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",height:64,
+          paddingBottom:"env(safe-area-inset-bottom)"}}>
+          {MOBILE_NAV.map(item=>{
+            const isActive = item.id !== "_more" && active === item.id;
+            const isMoreActive = item.id === "_more" && mobileMenuOpen;
+            return (
+              <button key={item.id} onClick={()=>handleNav(item.id)}
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                  gap:3,background:"transparent",border:"none",cursor:"pointer",
+                  borderTop:isActive||isMoreActive?`2px solid ${T.green}`:"2px solid transparent",
+                  paddingTop:isActive||isMoreActive?0:2}}>
+                <span style={{fontSize:20}}>{item.icon}</span>
+                <span style={{fontSize:10,fontWeight:isActive||isMoreActive?700:400,
+                  color:isActive||isMoreActive?"#fff":T.textDim}}>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
