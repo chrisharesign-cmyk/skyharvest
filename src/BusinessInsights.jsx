@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import { useReportingSheets } from "./reportingContext.js";
 
 const T = {
   sky:"#3e7da1", green:"#86b955", amber:"#d4890a", rust:"#c0432b",
@@ -158,7 +159,7 @@ function computeInsights(sheets) {
 }
 
 // ── Build the prompt payload ──────────────────────────────────────────────────
-function buildPrompt(ins) {
+function buildPrompt(ins, periodLabel) {
   const fmt = d => d.toLocaleDateString("en-GB", {day:"numeric", month:"short", year:"numeric"});
   const fmtShort = d => d.toLocaleDateString("en-GB", {day:"numeric", month:"short"});
 
@@ -190,7 +191,7 @@ function buildPrompt(ins) {
 
   return `You are analysing operational data for SkyHarvest, a Vancouver-based microgreens and specialty produce business supplying fine-dining restaurants, hotels, and retail grocers.
 
-PERIOD: ${fmt(ins.dateRange.from)} to ${fmt(ins.dateRange.to)} (${ins.totalWeeks} weeks)
+PERIOD: ${periodLabel || fmt(ins.dateRange.from)+' to '+fmt(ins.dateRange.to)+' ('+ins.totalWeeks+' weeks)'}
 
 WEEKLY PRODUCTION (units harvested):
 ${weeklyProdSummary}
@@ -222,7 +223,7 @@ ${decliningList}
 
 ---
 
-Write a business insights report for SkyHarvest's management team. Use plain, direct prose — no fluff. Lead with the most important finding. Structure it into these four sections with these exact headings:
+Write a business insights report for SkyHarvest's management team. Begin with a one-line summary stating the exact period this report covers. Use plain, direct prose — no fluff. Lead with the most important finding. Structure it into these four sections with these exact headings:
 
 ## Production Trend
 Summarise the overall volume trajectory. Explain the production shift clearly. Flag the plateau if present.
@@ -386,6 +387,9 @@ export default function BusinessInsights({ sheets }) {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
   const [activeView, setActiveView] = useState("overview"); // overview | report
+  const { periodLabel = "All data" } = (() => {
+    try { return useReportingSheets(); } catch(e) { return {}; }
+  })();
 
   const ins = useMemo(() => {
     try { return computeInsights(sheets); }
@@ -394,12 +398,13 @@ export default function BusinessInsights({ sheets }) {
 
   const generateReport = useCallback(async () => {
     if (!ins) return;
+    const activePeriodLabel = periodLabel;
     setLoading(true);
     setError("");
     setAiReport("");
     setActiveView("report");
     try {
-      const prompt = buildPrompt(ins);
+      const prompt = buildPrompt(ins, activePeriodLabel);
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -477,6 +482,22 @@ export default function BusinessInsights({ sheets }) {
             {loading ? "⏳ Generating…" : "✨ Generate AI Insights"}
           </button>
         </div>
+      </div>
+
+      {/* Cost note */}
+      <div style={{background:"#f0f6fb",border:"1px solid #d0e4f0",borderRadius:8,
+        padding:"7px 14px",marginBottom:14,display:"flex",alignItems:"center",
+        justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+        <span style={{fontSize:11,color:T.textSub}}>
+          <strong style={{color:T.sky}}>API cost per report run: ~1p</strong>
+          {" "}(approx. £0.52/yr weekly · £0.12/yr monthly) · uses Claude Sonnet · ~1,700 tokens per call
+        </span>
+        {periodLabel && periodLabel !== "No data" && (
+          <span style={{fontSize:11,fontWeight:700,color:T.sky,
+            background:"#dbeeff",padding:"2px 9px",borderRadius:10,flexShrink:0}}>
+            📅 {periodLabel}
+          </span>
+        )}
       </div>
 
       {/* ── OVERVIEW VIEW ─────────────────────────────────────────────────── */}
