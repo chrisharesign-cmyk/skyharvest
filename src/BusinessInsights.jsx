@@ -343,19 +343,31 @@ export default function BusinessInsights({ sheets }) {
 
   const generateReport = useCallback(async()=>{
     if (!ins) return;
-    setLoading(true); setError(''); setAiReport(''); setActiveView('report');
+    setLoading(true); setError(''); setAiReport('');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 50000);
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
+        signal: controller.signal,
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1600,
           messages:[{role:'user',content:buildPrompt(ins,periodLabel)}] })
       });
+      if (!res.ok) throw new Error(`API returned ${res.status} ${res.statusText}`);
       const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-      setAiReport(data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n')||'');
-    } catch(e) { setError('Failed: '+e.message); }
-    finally { setLoading(false); }
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n') || '';
+      if (!text) throw new Error('Empty response received — try again');
+      setAiReport(text);
+    } catch(e) {
+      setError(e.name==='AbortError'
+        ? 'Request timed out after 50 seconds — check your connection and try again'
+        : 'Error: ' + e.message);
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false);
+    }
   },[ins,periodLabel]);
 
   if (!sheets||sheets.length===0) return (
