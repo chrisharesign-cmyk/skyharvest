@@ -129,10 +129,23 @@ function parseXlsxFull(buffer){
     const ws=wb.Sheets[sn];
     const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
 
-    // Find header row (row with customer names, col 22+)
+    // Detect sheet format
+    // Post-Feb 2026: Row 5 has "AI Calc Wt." in col C, "Sub-total" in col D
+    // Pre-Mar 2026:  Row 5 has "Sub-total" in col C, no AI Calc column
     let headerRow=4;
+    let hasAICalc=false;
     for(let i=0;i<Math.min(8,raw.length);i++){
-      if(raw[i]&&String(raw[i][2]||"").includes("AI Calc")){headerRow=i;break;}
+      if(raw[i]&&String(raw[i][2]||"").toLowerCase().includes("ai calc")){
+        headerRow=i; hasAICalc=true; break;
+      }
+    }
+    // If no AI Calc column, this is a pre-March sheet with units only — skip weight parsing
+    if(!hasAICalc){
+      sheets.push({date,sheetName:sn,isFriday:isFriday(sn),
+        cropRows:[],customerOrders:{},f134:null,
+        noWeightData:true, // flag: pre-AI-Calc sheet
+      });
+      continue;
     }
 
     // Build customer column map from header row
@@ -168,22 +181,20 @@ function parseXlsxFull(buffer){
       }
     }
 
-    // F134 control total (row 134, col F = index 5)
-    // Row 134 = index 133 in 0-based array
-    let f134 = null;
-    if(raw[133]){
-      const v=raw[133][5];
-      if(typeof v==="number"&&v>0) f134=v;
-    }
-    // Also check nearby rows (F134 position can vary slightly)
-    if(f134===null){
-      for(let r=130;r<Math.min(140,raw.length);r++){
-        if(raw[r]){
-          const v=raw[r][5];
-          if(typeof v==="number"&&v>50000) {f134=v; break;} // total should be >50g
+    // Sheet unit total — row 134, col D (index 3) = total Sub-total units
+    // This is what the spreadsheet calls the "check" row
+    // We validate our parsed unit count against this
+    let sheetUnitTotal = null;
+    for(let r=130;r<Math.min(145,raw.length);r++){
+      if(raw[r]){
+        const label=String(raw[r][1]||"").toLowerCase();
+        if(label.includes("total")){
+          const v=raw[r][3]; // col D = Sub-total column
+          if(typeof v==="number"&&v>10) { sheetUnitTotal=v; break; }
         }
       }
     }
+    let f134 = sheetUnitTotal; // reuse field name for compatibility
 
     if(cropRows.length>0||Object.keys(customerOrders).length>0){
       sheets.push({
@@ -369,6 +380,13 @@ function computeB(sheets,pkFn){
 function HarvestReportTab({sheets}){
   const [view,setView]=useState("A");
   const [groupBy,setGroupBy]=useState("month");
+  const [sortCol,setSortCol]=useState("total"); // "name" | period key | "total"
+  const [sortDir,setSortDir]=useState("desc");
+
+  const handleSortCol=(col)=>{
+    if(sortCol===col) setSortDir(d=>d==="desc"?"asc":"desc");
+    else {setSortCol(col); setSortDir("desc");}
+  };
   const pkFn=groupBy==="month"?monthKey:d=>d.toISOString().slice(0,10);
   const periodLabel=groupBy==="month"
     ?pk=>{const[y,m]=pk.split("-");return new Date(y,m-1).toLocaleString("default",{month:"short",year:"2-digit"});}
@@ -382,16 +400,16 @@ function HarvestReportTab({sheets}){
   const validation = useMemo(()=>{
     if(!sheets.length) return null;
     return sheets.map(s=>{
-      const calcTotal = s.cropRows.reduce((sum,r)=>sum+(r.weightG*r.units),0);
-      const match = s.f134 !== null ? Math.abs(calcTotal - s.f134) < 1 : null;
-      return {
-        sheet: s.sheetName,
-        date: s.date,
-        isFriday: s.isFriday,
-        calcTotal,
-        f134: s.f134,
-        match,
+      // Pre-AI-Calc sheets (Feb and earlier) have no weight data
+      if(s.noWeightData) return {
+        sheet:s.sheetName, date:s.date, isFriday:s.isFriday,
+        noWeightData:true, calcUnits:0, sheetUnits:null, match:null
       };
+      const calcUnits = s.cropRows.reduce((sum,r)=>sum+r.units,0);
+      const calcKg    = s.cropRows.reduce((sum,r)=>sum+(r.weightG*r.units)/1000,0);
+      const match = s.f134!=null ? Math.abs(calcUnits-s.f134)<=2 : null;
+      return {sheet:s.sheetName,date:s.date,isFriday:s.isFriday,
+        calcUnits,calcKg,sheetUnits:s.f134,match};
     });
   },[sheets]);
 
@@ -408,16 +426,57 @@ function HarvestReportTab({sheets}){
       {/* Validation panel */}
       {validation && validation.length > 0 && (
         <div style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,padding:"12px 16px",marginBottom:14}}>
-          <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 8px"}}>F134 Validation Checks</p>
-          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <div>
+              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>
+                Sheet Validation
+              </p>
+              <p style={{fontSize:11,color:T.textSub,margin:"3px 0 0"}}>
+                Checks that the number of packs we calculated matches the total on each sheet
+              </p>
+            </div>
+          </div>
+          {/* Legend */}
+          <div style={{display:"flex",gap:16,marginBottom:10,padding:"8px 12px",
+            background:"#f8fafb",borderRadius:8,flexWrap:"wrap"}}>
+            {[
+              {icon:"✅",text:"Calculated packs match the sheet total — data is correct"},
+              {icon:"❌",text:"Calculated packs do NOT match — the sheet may have been edited after upload"},
+              {icon:"⚠️",text:"Sheet predates the weight column (pre-March 2026) — units counted but no kg weights available"},
+            ].map(l=>(
+              <div key={l.icon} style={{display:"flex",gap:6,alignItems:"flex-start",fontSize:11,color:T.textSub}}>
+                <span style={{flexShrink:0}}>{l.icon}</span>
+                <span>{l.text}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:3}}>
             {validation.map((v,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:10,fontSize:12}}>
-                <span style={{fontSize:13}}>{v.match===true?"✅":v.match===false?"❌":"⚠️"}</span>
-                <span style={{fontWeight:600,color:T.textMain,minWidth:160}}>{v.sheetName||v.sheet}</span>
-                <span style={{color:T.textSub}}>Calculated: {(v.calcTotal/1000).toFixed(2)}kg</span>
-                {v.f134!==null&&<span style={{color:T.textSub}}>· F134: {(v.f134/1000).toFixed(2)}kg</span>}
-                {v.match===null&&<span style={{color:T.amber,fontSize:11}}>F134 not found in sheet</span>}
-                {v.match===false&&<span style={{color:T.rust,fontWeight:700,fontSize:11}}>MISMATCH — recalculate</span>}
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,
+                padding:"4px 0",borderBottom:i<validation.length-1?`1px solid ${T.border}`:"none"}}>
+                <span style={{fontSize:13,flexShrink:0}}>{v.noWeightData?"⚠️":v.match===true?"✅":v.match===false?"❌":"⚠️"}</span>
+                <span style={{fontWeight:600,color:T.textMain,minWidth:160,flexShrink:0}}>
+                  {v.sheet||v.sheetName}
+                </span>
+                {v.noWeightData ? (
+                  <span style={{fontSize:11,color:T.amber}}>
+                    Pre-March sheet — no AI Calc weight column. Pack counts only, no kg weights.
+                  </span>
+                ) : (
+                  <>
+                    <span style={{color:T.textSub}}>{v.calcUnits} packs calculated · {v.calcKg?.toFixed(2)}kg</span>
+                    {v.sheetUnits!=null&&(
+                      <span style={{color:T.textSub}}>· Sheet total: {v.sheetUnits} packs</span>
+                    )}
+                    {v.match===true&&<span style={{color:"#2a6010",fontSize:11,fontWeight:700}}>✓ Match</span>}
+                    {v.match===false&&(
+                      <span style={{color:T.rust,fontSize:11,fontWeight:700}}>
+                        Difference of {Math.abs(v.calcUnits-(v.sheetUnits||0))} packs — check sheet for manually edited rows
+                      </span>
+                    )}
+                    {v.match===null&&<span style={{color:T.amber,fontSize:11}}>Sheet total row not found</span>}
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -437,18 +496,43 @@ function HarvestReportTab({sheets}){
       </div>
       {report&&(()=>{
         const{data,periods}=report;
-        const crops=Object.keys(data).sort((a,b)=>Object.values(data[b]).reduce((s,v)=>s+v,0)-Object.values(data[a]).reduce((s,v)=>s+v,0));
-        const gt={};for(const p of periods)gt[p]=crops.reduce((s,c)=>s+(data[c][p]||0),0);
+        const allCrops=Object.keys(data);
+        const rowTotals={};
+        for(const c of allCrops) rowTotals[c]=periods.reduce((s,p)=>s+(data[c][p]||0),0);
+        const crops=[...allCrops].filter(c=>rowTotals[c]>=0.001).sort((a,b)=>{
+          if(sortCol==="name") return sortDir==="asc"?a.localeCompare(b):b.localeCompare(a);
+          if(sortCol==="total") return sortDir==="asc"?rowTotals[a]-rowTotals[b]:rowTotals[b]-rowTotals[a];
+          // Period column
+          const av=data[a][sortCol]||0, bv=data[b][sortCol]||0;
+          return sortDir==="asc"?av-bv:bv-av;
+        });
+        const gt={};for(const p of periods)gt[p]=allCrops.reduce((s,c)=>s+(data[c][p]||0),0);
         const total=Object.values(gt).reduce((s,v)=>s+v,0);
         return(
           <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:T.textMain}}>
-                <th style={{textAlign:"left",padding:"10px 16px",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",position:"sticky",left:0,background:T.textMain,minWidth:180}}>
+                <th onClick={()=>handleSortCol("name")}
+                  style={{textAlign:"left",padding:"10px 16px",color:sortCol==="name"?"#86b955":"#fff",
+                    fontWeight:700,fontSize:11,textTransform:"uppercase",position:"sticky",left:0,
+                    background:T.textMain,minWidth:180,cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}}>
                   {view==="A"?"Product":"Crop"}
+                  {sortCol==="name"?(sortDir==="desc"?" ↓":" ↑"):" ↕"}
                 </th>
-                {periods.map(p=><th key={p} style={{textAlign:"right",padding:"10px 12px",color:"#fff",fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{periodLabel(p)}</th>)}
-                <th style={{textAlign:"right",padding:"10px 14px",color:T.green,fontWeight:700,fontSize:11,background:"#0a1b2a"}}>Total kg</th>
+                {periods.map(p=>(
+                  <th key={p} onClick={()=>handleSortCol(p)}
+                    style={{textAlign:"right",padding:"10px 12px",cursor:"pointer",userSelect:"none",
+                      color:sortCol===p?"#86b955":"rgba(255,255,255,0.85)",fontWeight:700,fontSize:11,
+                      whiteSpace:"nowrap"}}>
+                    {periodLabel(p)}{sortCol===p?(sortDir==="desc"?" ↓":" ↑"):" ↕"}
+                  </th>
+                ))}
+                <th onClick={()=>handleSortCol("total")}
+                  style={{textAlign:"right",padding:"10px 14px",cursor:"pointer",userSelect:"none",
+                    color:sortCol==="total"?"#86b955":T.green,fontWeight:700,fontSize:11,
+                    background:"#0a1b2a",whiteSpace:"nowrap"}}>
+                  Total kg{sortCol==="total"?(sortDir==="desc"?" ↓":" ↑"):" ↕"}
+                </th>
               </tr></thead>
               <tbody>{crops.map((crop,i)=>{
                 const rowT=periods.reduce((s,p)=>s+(data[crop][p]||0),0);
