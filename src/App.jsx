@@ -606,12 +606,127 @@ function PlantingsView(){
     );
   }
 
+  if (selectedTray) return (
+    <div>
+      <button onClick={()=>setSelectedTray(null)}
+        style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:T.sky,fontSize:13,fontWeight:700,marginBottom:16,padding:0}}>
+        ← Back to Planting Records
+      </button>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        {/* Main record */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{background:T.surface,borderRadius:12,border:`2px solid ${selectedTray.fab?T.rust:T.sky}`,overflow:"hidden"}}>
+            <div style={{padding:"14px 20px",background:`linear-gradient(135deg,${T.textMain},${selectedTray.fab?T.rust:T.sky})`,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div>
+                <p style={{fontSize:10,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record {selectedTray.fab&&"· Fabricated demo data"}</p>
+                <h2 style={{fontSize:18,fontWeight:900,color:"#fff",margin:"2px 0 0"}}>{selectedTray.crop}</h2>
+                <p style={{fontSize:11,fontFamily:"monospace",color:"rgba(255,255,255,0.7)",margin:"3px 0 0"}}>{selectedTray.id}</p>
+              </div>
+              <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:10,background:selectedTray.status==="On track"?"#e8f6dc":"#fef3dc",color:selectedTray.status==="On track"?"#2a6010":"#7a5000"}}>{selectedTray.status}</span>
+            </div>
+            <div style={{padding:16}}>
+              {[
+                ["Planted",        selectedTray.planted,   false],
+                ["Est. Harvest",   selectedTray.harvest,   false],
+                ["Days Remaining", `${selectedTray.daysLeft} days`, false],
+                ["Shelf Location", selectedTray.shelf,     false],
+                ["Tray Count",     selectedTray.tray_count||"—", false],
+                ["Planted By",     selectedTray.who,       selectedTray.fab],
+                ["Seed Lot",       selectedTray.lot,       selectedTray.fab],
+                ["Soil Mix",       selectedTray.soil,      selectedTray.fab],
+                ["Cert Uploaded",  selectedTray.certUploaded?"✓ Yes":"Not yet", false],
+              ].map(([label,val,isFab])=>(
+                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
+                  <span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</span>
+                  <span style={{fontSize:12,fontWeight:600,color:isFab?T.rust:T.textMain,fontStyle:isFab?"italic":"normal"}}>{val||"—"}</span>
+                </div>
+              ))}
+              <div style={{marginTop:14,display:"flex",gap:8}}>
+                <button onClick={()=>setStep(1)} style={{flex:1,padding:"9px",background:T.green,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Plant Another</button>
+                <button style={{flex:1,padding:"9px",background:"#fff",color:T.sky,border:`1px solid ${T.sky}`,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>🤖 Health Check</button>
+              </div>
+            </div>
+          </div>
+          {/* Organic chain */}
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:"#f0f9ec"}}>
+              <p style={{fontSize:11,fontWeight:700,color:"#2a6010",textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>🔗 Organic Chain of Custody</p>
+            </div>
+            <div style={{padding:14,display:"flex",flexDirection:"column",gap:8}}>
+              {[
+                {label:"Seed Supplier",  value:selectedTray.soil||"West Coast Seeds",  cert:"Pro-Cert Organic PRO-2026-WCS-001", ok:true},
+                {label:"Seed Lot",       value:selectedTray.lot||"WCS-ORG-2026-001-PEA", cert:"Certified organic seed", ok:true},
+                {label:"Soil Batch",     value:selectedTray.soil||"SOIL-2026-M3-007",  cert:"Pacific Rim Horticulture · COABC/PACS", ok:true},
+                {label:"Tray Planted",   value:selectedTray.planted,                   cert:`Planted by ${selectedTray.who}`, ok:true},
+                {label:"Harvest",        value:selectedTray.harvest,                   cert:"Scheduled", ok:selectedTray.status!=="failed"},
+              ].map((step,i)=>(
+                <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <div style={{width:20,height:20,borderRadius:10,background:step.ok?"#e8f6dc":"#fde8e8",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>
+                    <span style={{fontSize:10,color:step.ok?"#2a6010":"#b91c1c"}}>{step.ok?"✓":"✗"}</span>
+                  </div>
+                  <div>
+                    <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{step.label}: <span style={{fontStyle:"italic",fontWeight:400}}>{step.value}</span></p>
+                    <p style={{fontSize:10,color:T.textSub,margin:"1px 0 0"}}>{step.cert}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Notes + health history */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Notes & Observations</p>
+              <span style={{fontSize:12,color:T.textSub}}>{selectedTray.notes?.length||0} note{selectedTray.notes?.length!==1?"s":""}</span>
+            </div>
+            {!selectedTray.notes?.length ? (
+              <p style={{fontSize:12,color:T.textSub,padding:"14px 16px",margin:0,fontStyle:"italic"}}>No notes yet. Add observations from the Grow Room.</p>
+            ) : (
+              <div style={{padding:12,display:"flex",flexDirection:"column",gap:8}}>
+                {selectedTray.notes.map((n,i)=>(
+                  <div key={i} style={{padding:10,background:n.text?.includes("⚠")?"#fff5f5":"#f8fafb",borderRadius:8,border:`1px solid ${n.text?.includes("⚠")?"#fca5a5":T.border}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{fontSize:11,fontWeight:700,color:T.textMain}}>{n.by}</span>
+                      <span style={{fontSize:10,color:T.textSub}}>{n.at}</span>
+                    </div>
+                    <p style={{fontSize:12,color:T.textMain,margin:0,lineHeight:1.5}}>{n.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`}}>
+              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Health History</p>
+            </div>
+            {!selectedTray.healthHistory?.length ? (
+              <p style={{fontSize:12,color:T.textSub,padding:"14px 16px",margin:0,fontStyle:"italic"}}>No health assessments yet. Use Tray Health AI to assess this tray.</p>
+            ) : (
+              selectedTray.healthHistory.map((h,i)=>(
+                <div key={i} style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:12,alignItems:"center"}}>
+                  <div style={{width:40,height:40,borderRadius:20,background:h.score>=80?"#e8f6dc":h.score>=60?"#fef3dc":"#fde8e8",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <span style={{fontSize:14,fontWeight:900,color:h.score>=80?T.green:h.score>=60?T.amber:T.rust}}>{h.score}</span>
+                  </div>
+                  <div>
+                    <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{h.stage}</p>
+                    <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>{h.date} · {h.by}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Planting Records</h1>
-          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Tray barcodes · seed lots · organic chain of custody</p>
+          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Tray barcodes · seed lots · organic chain of custody · click any row for full detail</p>
         </div>
         <button onClick={()=>setStep(1)} style={{background:T.green,color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Plant Tray</button>
       </div>
@@ -620,20 +735,40 @@ function PlantingsView(){
           ⚠ Some records are <strong style={{color:"#b91c1c"}}>fabricated demo data</strong> (shown in red italic). Real records appear when trays are planted using the + Plant Tray flow.
         </div>
       )}
-      <DataTable
-        cols={[
-          {key:"id",label:"Barcode ID",render:(v,r)=><span style={{fontFamily:"monospace",fontSize:11,color:r.fab?T.rust:T.sky,fontStyle:r.fab?"italic":"normal"}}>{v}</span>},
-          {key:"crop",label:"Crop"},
-          {key:"planted",label:"Planted",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
-          {key:"daysLeft",label:"Days Left",render:v=><span style={{fontWeight:700,color:v<=3?T.green:T.textMain}}>{v}d</span>},
-          {key:"lot",label:"Seed Lot",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
-          {key:"who",label:"Planted By",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
-          {key:"shelf",label:"Shelf",render:(v,r)=>r.fab?<Fab>{v}</Fab>:v},
-          {key:"notes",label:"Notes",render:(v,r)=><span style={{fontSize:11,color:T.textSub}}>{v.length>0?`${v.length} note${v.length>1?"s":""}`:"—"}</span>},
-          {key:"status",label:"Status",render:v=><Pill label={v}/>},
-        ]}
-        rows={trays}
-      />
+      <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{borderBottom:`1px solid ${T.border}`}}>
+              {["Barcode ID","Crop","Planted","Days Left","Seed Lot","Planted By","Shelf","Notes","Status"].map(h=>(
+                <th key={h} style={{textAlign:"left",padding:"10px 16px",fontSize:10,fontWeight:700,color:T.textSub,letterSpacing:"0.06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {trays.map((tray,i)=>(
+              <tr key={tray.id}
+                onClick={()=>setSelectedTray(tray)}
+                style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc",cursor:"pointer",transition:"background 0.12s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
+                onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafbfc"}>
+                <td style={{padding:"11px 16px"}}><span style={{fontFamily:"monospace",fontSize:11,color:tray.fab?T.rust:T.sky,fontStyle:tray.fab?"italic":"normal"}}>{tray.id}</span></td>
+                <td style={{padding:"11px 16px",fontWeight:600,color:tray.fab?T.rust:T.textMain,fontStyle:tray.fab?"italic":"normal"}}>{tray.crop}</td>
+                <td style={{padding:"11px 16px",color:T.textSub}}>{tray.planted}</td>
+                <td style={{padding:"11px 16px"}}><span style={{fontWeight:700,color:tray.daysLeft<=3?T.green:T.textMain}}>{tray.daysLeft}d</span></td>
+                <td style={{padding:"11px 16px",color:tray.fab?T.rust:T.textSub,fontStyle:tray.fab?"italic":"normal",fontSize:11}}>{tray.lot}</td>
+                <td style={{padding:"11px 16px",color:tray.fab?T.rust:T.textSub,fontStyle:tray.fab?"italic":"normal"}}>{tray.who}</td>
+                <td style={{padding:"11px 16px",color:T.textSub,fontFamily:"monospace",fontSize:11}}>{tray.shelf}</td>
+                <td style={{padding:"11px 16px",color:T.textSub,fontSize:11}}>
+                  {tray.notes?.length>0
+                    ? <span style={{color:tray.notes.some(n=>n.text?.includes("⚠"))?T.rust:T.sky,fontWeight:700}}>{tray.notes.length} note{tray.notes.length>1?"s":""}</span>
+                    : "—"}
+                </td>
+                <td style={{padding:"11px 16px"}}><Pill label={tray.status}/></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
