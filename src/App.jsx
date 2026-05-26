@@ -1448,7 +1448,7 @@ const MOBILE_NAV = [
 
 function HarvestManagerEmbed() {
   return (
-    <div style={{height:"calc(100vh - 88px)",overflow:"hidden",margin:"-24px"}}>
+    <div style={{height:"100%",overflow:"hidden",display:"flex",flexDirection:"column"}}>
       <HarvestManager/>
     </div>
   );
@@ -1583,8 +1583,8 @@ export default function SkyHarvestMIS() {
           <p style={{fontSize:11,color:T.textSub,margin:0}}>Week of <strong style={{color:T.textMain}}>26 May 2026</strong></p>
         </div>
         <div style={{flex:1,overflowY:"auto",background:T.bg,
-          padding:active==="harvestruns"||active==="orderinbox"?0:isMobile?"16px":24,
-          paddingBottom:isMobile&&active!=="harvestruns"&&active!=="orderinbox"?"80px":undefined}}>
+          padding:active==="orderinbox"?0:isMobile?"16px":24,
+          paddingBottom:isMobile&&active!=="orderinbox"?"80px":undefined}}>
           {active==="legacy" ? <LegacySiteView navigate={setActive}/> : (VIEWS[active]||<DashboardView/>)}
         </div>
       </div>
