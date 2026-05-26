@@ -1130,10 +1130,11 @@ export default function Reporting(){
   },[]);
 
   const TABS=[
-    {id:"report",   label:"📊 Harvest Report"},
-    {id:"customers",label:"👥 Customer Insights"},
-    {id:"products", label:"🌱 Product Insights"},
-    {id:"insights", label:"💡 Business Insights"},
+    {id:"report",      label:"📊 Harvest Report"},
+    {id:"customers",   label:"👥 Customer Insights"},
+    {id:"products",    label:"🌱 Product Insights"},
+    {id:"cropweights", label:"⚖️ Crop Weights"},
+    {id:"insights",    label:"💡 Business Insights"},
   ];
 
   return(
@@ -1263,7 +1264,313 @@ export default function Reporting(){
       {activeTab==="report"    && <HarvestReportTab    sheets={filteredSheets}/>}
       {activeTab==="customers" && <CustomerInsightsTab sheets={filteredSheets}/>}
       {activeTab==="products"  && <ProductInsightsTab  sheets={filteredSheets}/>}
+      {activeTab==="cropweights" && <CropWeightsTab      sheets={filteredSheets}/>}
       {activeTab==="insights"  && <BusinessInsights    sheets={filteredSheets}/>}
+    </div>
+  );
+}
+
+// ── Crop Weights Tab ──────────────────────────────────────────────────────────
+
+function isoWeek(date) {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const wk = 1 + Math.round(((d - jan4) / 86400000 - 3 + ((jan4.getDay()+6)%7)) / 7);
+  return `${d.getFullYear()}-W${String(wk).padStart(2,'0')}`;
+}
+
+function mondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun
+  const diff = (day === 0) ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function decomposeToCrops(cropRows) {
+  // Returns { cropName: kg } after mix decomposition + rename
+  const out = {};
+  for (const { name, weightG, units } of cropRows) {
+    if (!units || units <= 0) continue;
+    const totalKg = (weightG * units) / 1000;
+    const mixFam = getMixFamily(name);
+    if (mixFam && MIX_SPLITS[mixFam]) {
+      for (const [crop, pct] of Object.entries(MIX_SPLITS[mixFam])) {
+        out[crop] = (out[crop] || 0) + totalKg * pct;
+      }
+    } else {
+      const family = getProductFamily(name);
+      if (family) out[family] = (out[family] || 0) + totalKg;
+    }
+  }
+  return out;
+}
+
+function computeCropWeightsByWeek(sheets) {
+  if (!sheets || sheets.length === 0) return null;
+
+  // Group sheets by ISO week
+  const weekMap = {};
+  for (const s of sheets) {
+    if (!s.date) continue;
+    const wk = isoWeek(s.date);
+    if (!weekMap[wk]) weekMap[wk] = { wed: null, fri: null };
+    if (s.isFriday) weekMap[wk].fri = s;
+    else            weekMap[wk].wed = s;
+  }
+
+  const sortedWeeks = Object.keys(weekMap).sort();
+  const weeks = sortedWeeks.map(wk => {
+    const { wed, fri } = weekMap[wk];
+    const anchor = wed || fri;
+    const mon = mondayOf(anchor.date);
+    const label = mon.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+
+    const wedRows = wed?.cropRows || [];
+    const friRows = fri?.cropRows || [];
+    const hasWeight = (wed && !wed.noWeightData) || (fri && !fri.noWeightData);
+
+    // Aggregate crops from both days
+    const cropKg = {};
+    if (wed && !wed.noWeightData) {
+      for (const [c,kg] of Object.entries(decomposeToCrops(wedRows))) {
+        cropKg[c] = (cropKg[c] || 0) + kg;
+      }
+    }
+    if (fri && !fri.noWeightData) {
+      for (const [c,kg] of Object.entries(decomposeToCrops(friRows))) {
+        cropKg[c] = (cropKg[c] || 0) + kg;
+      }
+    }
+    const totalKg = Object.values(cropKg).reduce((s,v)=>s+v, 0);
+
+    // Validation (units)
+    const wedCalc = wedRows.reduce((s,r)=>s+r.units,0);
+    const friCalc = friRows.reduce((s,r)=>s+r.units,0);
+    const wedOk = wed ? (wed.f134 == null || wed.f134 === wedCalc) : null;
+    const friOk = fri ? (fri.f134 == null || fri.f134 === friCalc) : null;
+
+    return {
+      wk, label, wed, fri,
+      isPartial: !wed || !fri,
+      hasWeight,
+      cropKg, totalKg,
+      wedCalc, wedF134: wed?.f134 ?? null, wedOk,
+      friCalc, friF134: fri?.f134 ?? null, friOk,
+    };
+  });
+
+  // YTD totals
+  const ytd = {};
+  let ytdTotal = 0;
+  for (const w of weeks) {
+    for (const [c,kg] of Object.entries(w.cropKg)) {
+      ytd[c] = (ytd[c] || 0) + kg;
+    }
+    ytdTotal += w.totalKg;
+  }
+
+  // All crop names sorted by YTD weight desc
+  const allCrops = Object.keys(ytd).sort((a,b) => ytd[b] - ytd[a]);
+
+  return { weeks, ytd, ytdTotal, allCrops };
+}
+
+function CropWeightsTab({ sheets }) {
+  const [unit, setUnit] = React.useState('kg'); // kg | pct
+
+  const data = React.useMemo(() => computeCropWeightsByWeek(sheets), [sheets]);
+
+  if (!data) return (
+    <div style={{textAlign:'center',padding:'60px 20px',color:T.textSub}}>
+      <div style={{fontSize:32,marginBottom:8}}>⚖️</div>
+      <div style={{fontSize:14,fontWeight:600,color:T.textMain}}>No data loaded</div>
+      <div style={{fontSize:12,marginTop:4}}>Upload Wednesday and Friday harvest files to see crop weights.</div>
+    </div>
+  );
+
+  const { weeks, ytd, ytdTotal, allCrops } = data;
+  // Show last 4 weeks as main columns
+  const displayWeeks = weeks.slice(-4);
+
+  const fmtKg = v => v < 0.005 ? '—' : v.toFixed(2);
+  const fmtPct = (v, total) => total > 0 ? (v/total*100).toFixed(1)+'%' : '—';
+
+  const colW = 90;
+  const nameW = 160;
+  const ytdW = 90;
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+
+      {/* Controls */}
+      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+        padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+        <div>
+          <span style={{fontSize:13,fontWeight:700,color:T.textMain}}>Crop Weights by Week</span>
+          <span style={{fontSize:11,color:T.textSub,marginLeft:10}}>
+            {weeks.length} weeks · Wed + Fri combined · mixes decomposed to base crops
+          </span>
+        </div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <span style={{fontSize:11,color:T.textSub}}>Show:</span>
+          <div style={{display:'flex',border:`1px solid ${T.border}`,borderRadius:7,overflow:'hidden'}}>
+            {[['kg','kg'],['pct','% of week']].map(([id,lbl])=>(
+              <button key={id} onClick={()=>setUnit(id)}
+                style={{padding:'5px 12px',fontSize:11,fontWeight:700,border:'none',
+                  cursor:'pointer',background:unit===id?T.sky:'#fff',
+                  color:unit===id?'#fff':T.textMain}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Main table */}
+      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,overflow:'hidden'}}>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead>
+              {/* Week header row */}
+              <tr style={{background:'#f0f6fb'}}>
+                <th style={{width:nameW,textAlign:'left',padding:'8px 12px',
+                  fontWeight:700,color:T.textSub,fontSize:11,
+                  borderBottom:`1px solid ${T.border}`,
+                  position:'sticky',left:0,background:'#f0f6fb',zIndex:2}}>
+                  CROP
+                </th>
+                {displayWeeks.map(w=>(
+                  <th key={w.wk} style={{width:colW,textAlign:'right',padding:'8px 10px',
+                    fontWeight:700,color:T.textMain,fontSize:11,
+                    borderBottom:`1px solid ${T.border}`,borderLeft:`1px solid ${T.border}`}}>
+                    <div>W/C {w.label}</div>
+                    <div style={{fontWeight:400,fontSize:10,color:T.textSub,marginTop:2}}>
+                      {w.wed?<span style={{color:T.green}}>Wed ✓</span>:<span style={{color:T.amber}}>Wed —</span>}
+                      {' '}
+                      {w.fri?<span style={{color:T.sky}}>Fri ✓</span>:<span style={{color:T.amber}}>Fri —</span>}
+                    </div>
+                  </th>
+                ))}
+                <th style={{width:ytdW,textAlign:'right',padding:'8px 10px',
+                  fontWeight:800,color:T.sky,fontSize:11,
+                  borderBottom:`1px solid ${T.border}`,borderLeft:`2px solid ${T.sky}`,
+                  background:'#e8f4fb'}}>
+                  YTD {unit==='kg'?'(kg)':'(%)'}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {allCrops.map((crop, ci) => {
+                const isTop = ci < 5;
+                const rowBg = ci % 2 === 0 ? '#fff' : '#fafbfc';
+                return (
+                  <tr key={crop} style={{background:rowBg}}>
+                    <td style={{padding:'6px 12px',fontWeight:isTop?700:400,
+                      color:T.textMain,borderBottom:`1px solid #f0f0f0`,
+                      position:'sticky',left:0,background:rowBg,zIndex:1,
+                      whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
+                      maxWidth:nameW}}>
+                      {crop}
+                    </td>
+                    {displayWeeks.map(w=>{
+                      const val = w.cropKg[crop] || 0;
+                      const display = !w.hasWeight ? <span style={{color:'#ccc'}}>—</span>
+                        : unit==='kg'
+                          ? <span style={{fontWeight:val>0&&isTop?700:400}}>{fmtKg(val)}</span>
+                          : <span>{fmtPct(val,w.totalKg)}</span>;
+                      return (
+                        <td key={w.wk} style={{padding:'6px 10px',textAlign:'right',
+                          borderBottom:`1px solid #f0f0f0`,borderLeft:`1px solid ${T.border}`,
+                          color:val>0?T.textMain:T.textSub}}>
+                          {display}
+                        </td>
+                      );
+                    })}
+                    <td style={{padding:'6px 10px',textAlign:'right',
+                      borderBottom:`1px solid #f0f0f0`,borderLeft:`2px solid ${T.sky}`,
+                      background:'#f0f8fd',fontWeight:isTop?700:400,color:T.textMain}}>
+                      {unit==='kg' ? fmtKg(ytd[crop]||0) : fmtPct(ytd[crop]||0, ytdTotal)}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Total row */}
+              <tr style={{background:'#e8f4fb',borderTop:`2px solid ${T.sky}`}}>
+                <td style={{padding:'8px 12px',fontWeight:800,color:T.sky,
+                  position:'sticky',left:0,background:'#e8f4fb',zIndex:1}}>
+                  TOTAL (kg)
+                </td>
+                {displayWeeks.map(w=>(
+                  <td key={w.wk} style={{padding:'8px 10px',textAlign:'right',
+                    fontWeight:800,color:T.sky,borderLeft:`1px solid ${T.border}`}}>
+                    {w.hasWeight ? w.totalKg.toFixed(2) : '—'}
+                  </td>
+                ))}
+                <td style={{padding:'8px 10px',textAlign:'right',fontWeight:800,
+                  color:T.sky,borderLeft:`2px solid ${T.sky}`,background:'#daeefa'}}>
+                  {ytdTotal.toFixed(2)}
+                </td>
+              </tr>
+
+              {/* Validation row */}
+              <tr style={{background:'#fafbfc',borderTop:`1px solid ${T.border}`}}>
+                <td style={{padding:'5px 12px',fontSize:10,fontWeight:700,color:T.textSub,
+                  position:'sticky',left:0,background:'#fafbfc',zIndex:1}}>
+                  UNIT CHECK
+                </td>
+                {displayWeeks.map(w=>{
+                  const wedOk = w.wedOk !== false;
+                  const friOk = w.friOk !== false;
+                  const allOk = wedOk && friOk;
+                  return (
+                    <td key={w.wk} style={{padding:'5px 10px',textAlign:'right',
+                      borderLeft:`1px solid ${T.border}`}}>
+                      <div title={`Wed: ${w.wedCalc} calc vs ${w.wedF134??'?'} sheet\nFri: ${w.friCalc} calc vs ${w.friF134??'?'} sheet`}>
+                        {w.wed && <span style={{fontSize:10,color:w.wedOk===false?T.rust:T.green}}>
+                          W {w.wedOk===false?'✗':'✓'}
+                        </span>}
+                        {' '}
+                        {w.fri && <span style={{fontSize:10,color:w.friOk===false?T.rust:T.sky}}>
+                          F {w.friOk===false?'✗':'✓'}
+                        </span>}
+                      </div>
+                    </td>
+                  );
+                })}
+                <td style={{padding:'5px 10px',background:'#f0f8fd',
+                  borderLeft:`2px solid ${T.sky}`}}/>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Weeks outside the rolling 4 — summary */}
+      {weeks.length > 4 && (
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:'12px 16px'}}>
+          <div style={{fontSize:11,fontWeight:700,color:T.textSub,marginBottom:8,
+            textTransform:'uppercase',letterSpacing:'0.05em'}}>
+            Earlier weeks (not in rolling view)
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {weeks.slice(0,-4).map(w=>(
+              <div key={w.wk} style={{fontSize:11,color:T.textSub,
+                background:'#f4f6f8',padding:'4px 10px',borderRadius:6,
+                border:`1px solid ${T.border}`}}>
+                <span style={{fontWeight:700,color:T.textMain}}>W/C {w.label}</span>
+                {w.hasWeight
+                  ? <span style={{color:T.textSub}}> · {w.totalKg.toFixed(1)} kg</span>
+                  : <span style={{color:T.amber}}> · no weight data</span>}
+                {w.isPartial && <span style={{color:T.amber}}> ⚠ partial</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
