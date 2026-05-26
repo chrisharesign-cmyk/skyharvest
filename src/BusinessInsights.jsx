@@ -347,16 +347,15 @@ export default function BusinessInsights({ sheets }) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 50000);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
+      const res = await fetch('/.netlify/functions/generate-insights',{
         method:'POST',
         signal: controller.signal,
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1600,
-          messages:[{role:'user',content:buildPrompt(ins,periodLabel)}] })
+        body:JSON.stringify({ prompt: buildPrompt(ins,periodLabel) })
       });
-      if (!res.ok) throw new Error(`API returned ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(`Server error ${res.status} — check Netlify function logs`);
       const data = await res.json();
-      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      if (data.error) throw new Error(typeof data.error==='string' ? data.error : JSON.stringify(data.error));
       const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n') || '';
       if (!text) throw new Error('Empty response received — try again');
       setAiReport(text);
