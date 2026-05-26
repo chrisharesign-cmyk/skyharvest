@@ -197,15 +197,15 @@ export default function HarvestManager() {
               ) : (
                 <table style={{borderCollapse:"collapse",fontSize:11,minWidth:"100%"}}>
                   <thead>
-                    <tr style={{background:T.textMain,position:"sticky",top:0,zIndex:10}}>
-                      <th style={{textAlign:"left",padding:"9px 14px",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",position:"sticky",left:0,background:T.textMain,minWidth:170,boxShadow:"2px 0 4px rgba(0,0,0,0.2)"}}>Product</th>
-                      <th style={{padding:"9px 8px",color:"rgba(255,255,255,0.5)",fontWeight:600,fontSize:10,textAlign:"center",minWidth:42}}>g</th>
-                      <th style={{padding:"9px 10px",color:T.green,fontWeight:800,fontSize:10,textAlign:"center",background:"#122030",minWidth:50}}>TOTAL</th>
-                      <th style={{padding:"9px 10px",color:T.green,fontWeight:800,fontSize:10,textAlign:"center",background:"#122030",minWidth:46}}>kg</th>
+                    <tr style={{background:T.textMain,position:"sticky",top:0,zIndex:10,height:84}}>
+                      <th style={{textAlign:"left",padding:"9px 14px",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",position:"sticky",left:0,background:T.textMain,minWidth:170,boxShadow:"2px 0 4px rgba(0,0,0,0.2)",verticalAlign:"bottom"}}>Product</th>
+                      <th style={{padding:"9px 8px",color:"rgba(255,255,255,0.5)",fontWeight:600,fontSize:10,textAlign:"center",minWidth:42,verticalAlign:"bottom"}}>g</th>
+                      <th style={{padding:"9px 10px",color:T.green,fontWeight:800,fontSize:10,textAlign:"center",background:"#122030",minWidth:50,verticalAlign:"bottom"}}>TOTAL</th>
+                      <th style={{padding:"9px 10px",color:T.green,fontWeight:800,fontSize:10,textAlign:"center",background:"#122030",minWidth:46,verticalAlign:"bottom"}}>kg</th>
                       {customers.map(c=>(
-                        <th key={c.id} style={{padding:"4px 3px 0",color:"rgba(255,255,255,0.8)",fontWeight:600,fontSize:9,textAlign:"center",minWidth:40}}>
-                          <div style={{transform:"rotate(-40deg)",transformOrigin:"bottom left",display:"inline-block",paddingLeft:3,marginBottom:-4,marginTop:16,whiteSpace:"nowrap",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis"}}>
-                            {c.name.split(" ").slice(0,2).join(" ")}
+                        <th key={c.id} style={{padding:"0 2px",color:"rgba(255,255,255,0.85)",fontWeight:600,fontSize:9,textAlign:"left",minWidth:36,height:80,verticalAlign:"bottom"}}>
+                          <div style={{transform:"rotate(-45deg)",transformOrigin:"left bottom",display:"inline-block",paddingBottom:4,whiteSpace:"nowrap",width:24,overflow:"visible"}}>
+                            {c.name.length > 12 ? c.name.slice(0,11)+"…" : c.name}
                           </div>
                         </th>
                       ))}
