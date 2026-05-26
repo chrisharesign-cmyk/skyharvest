@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
+import HarvestManager from "./HarvestManager.jsx";
 import * as XLSX from 'xlsx';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -1398,7 +1399,7 @@ function TrayHealthTab(){
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function SkyHarvestApp(){
   const [tab,setTab]=useState("dashboard");
-  const tabs=[{id:"dashboard",label:"Dashboard"},{id:"report",label:"Harvest Report"},{id:"nextrun",label:"Next Run"},{id:"roadmap",label:"🚀 What's Possible"},{id:"trayhealth",label:"🔬 Tray Health"}];
+  const tabs=[{id:"dashboard",label:"Dashboard"},{id:"report",label:"Harvest Report"},{id:"nextrun",label:"Next Run"},{id:"roadmap",label:"🚀 What's Possible"},{id:"trayhealth",label:"🔬 Tray Health"},{id:"harvest",label:"🌿 Harvest Runs"}];
   return(
     <div className="min-h-screen" style={{background:C.cream}}>
       <div className="shadow-md" style={{background:C.navyBlue}}>
@@ -1427,6 +1428,7 @@ export default function SkyHarvestApp(){
         {tab==="nextrun"&&<NextRunTab/>}
         {tab==="roadmap"&&<RoadmapTab/>}
         {tab==="trayhealth"&&<TrayHealthTab/>}
+        {tab==="harvest"&&<div style={{height:"calc(100vh - 52px)",overflow:"hidden"}}><HarvestManager/></div>}
       </div>
     </div>
   );
