@@ -66,13 +66,17 @@ function computeInsights(sheets) {
     while (arr.length < totalWeeks) arr.push(0);
 
   // Trend thresholds
+  // earlyStart/earlyEnd: skip first 3 weeks (Jan spike / Dine Out Vancouver anomaly)
+  // and use weeks 4-7 as the stable baseline — avoids measuring vs an exceptional period
   const recentCutoff = Math.max(0, totalWeeks - 7);
-  const earlyEnd     = Math.min(3, totalWeeks);
+  const earlyStart   = totalWeeks > 7 ? 3 : 0;
+  const earlyEnd     = totalWeeks > 7 ? Math.min(7, totalWeeks) : Math.min(3, totalWeeks);
 
   const customerStats = Object.entries(customerWeekly).map(([name,weekly]) => {
     const totalUnits  = weekly.reduce((a,b)=>a+b,0);
     const activeWeeks = weekly.filter(v=>v>0).length;
-    const earlyAvg    = weekly.slice(0,earlyEnd).reduce((a,b)=>a+b,0)/Math.max(earlyEnd,1);
+    const earlySlice  = weekly.slice(earlyStart, earlyEnd);
+    const earlyAvg    = earlySlice.reduce((a,b)=>a+b,0)/Math.max(earlySlice.length,1);
     const recentSlice = weekly.slice(recentCutoff);
     const recentAvg   = recentSlice.reduce((a,b)=>a+b,0)/Math.max(recentSlice.length,1);
     const lastActive  = weekly.map((v,i)=>[v,i]).filter(([v])=>v>0).pop();
@@ -97,8 +101,8 @@ function computeInsights(sheets) {
   const peakWeek    = weeklyProduction.indexOf(Math.max(...weeklyProduction));
   const recentProd  = weeklyProduction.slice(recentCutoff);
   const recentProdAvg = recentProd.reduce((a,b)=>a+b,0)/Math.max(recentProd.length,1);
-  const earlyProd   = weeklyProduction.slice(0,earlyEnd);
-  const earlyProdAvg  = earlyProd.reduce((a,b)=>a+b,0)/Math.max(earlyEnd,1);
+  const earlyProd     = weeklyProduction.slice(earlyStart, earlyEnd);
+  const earlyProdAvg  = earlyProd.reduce((a,b)=>a+b,0)/Math.max(earlyProd.length,1);
   const rpCV = recentProdAvg>0
     ? Math.sqrt(recentProd.reduce((s,v)=>s+(v-recentProdAvg)**2,0)/recentProd.length)/recentProdAvg : 0;
 
@@ -439,11 +443,12 @@ export default function BusinessInsights({ sheets }) {
             {/* Top 10 accounts */}
             <div style={{flex:'2 1 320px',background:T.surface,border:`1px solid ${T.border}`,
               borderRadius:10,padding:'16px 20px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:10}}>
+              <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:4}}>
                 Top 10 Accounts
-                <span style={{fontSize:10,fontWeight:400,color:T.textSub,marginLeft:8}}>
-                  total volume · sparkline = weekly trend · recent avg shown
-                </span>
+              </div>
+              <div style={{fontSize:11,color:T.textSub,marginBottom:10,lineHeight:1.5,
+                paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
+                Sparkline = weekly order volume (oldest → newest). Trend % compares the last 7 weeks against weeks 4–7 as a stable baseline, skipping January which was elevated by Dine Out Vancouver. Colour: <span style={{color:T.green,fontWeight:700}}>green</span> = growing &gt;15%, <span style={{color:T.rust,fontWeight:700}}>red</span> = declining &gt;25%, <span style={{color:T.amber,fontWeight:700}}>amber</span> = in between.
               </div>
               {ins.top10.map((c,i)=><AccountRow key={c.name} c={c} rank={i+1}/>)}
             </div>
