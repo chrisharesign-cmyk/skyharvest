@@ -609,10 +609,70 @@ function computeQuarterlyInsights(sheets){
   return{quarters,byQuarter};
 }
 
+function QuarterlyTop5({quarterly,unit}){
+  const {quarters,byQuarter}=quarterly;
+  if(!quarters.length) return null;
+  const allProds={};
+  for(const q of quarters) for(const[p,v]of Object.entries(byQuarter[q])){
+    if(!allProds[p])allProds[p]={packs:0,kg:0};
+    allProds[p].packs+=v.packs; allProds[p].kg+=v.kg;
+  }
+  const top5=Object.entries(allProds)
+    .sort((a,b)=>unit==="packs"?b[1].packs-a[1].packs:b[1].kg-a[1].kg)
+    .slice(0,5).map(([name])=>name);
+  return(
+    <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+      <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}>
+        <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:0}}>Top 5 Products by Quarter</p>
+        <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>
+          {quarters.length} quarter{quarters.length!==1?"s":""} of data · {unit==="packs"?"pack counts":"kg harvested"}
+        </p>
+      </div>
+      <div style={{overflow:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:T.textMain}}>
+            <th style={{textAlign:"left",padding:"9px 16px",color:"#fff",fontWeight:700,fontSize:11,
+              textTransform:"uppercase",position:"sticky",left:0,background:T.textMain,minWidth:160}}>Product</th>
+            {quarters.map(q=><th key={q} style={{textAlign:"right",padding:"9px 14px",color:"#fff",
+              fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{q}</th>)}
+            <th style={{textAlign:"right",padding:"9px 14px",color:T.green,fontWeight:700,
+              fontSize:11,background:"#0a1b2a"}}>Total</th>
+          </tr></thead>
+          <tbody>{top5.map((prod,i)=>{
+            const rowTotal=quarters.reduce((s,q)=>s+(unit==="packs"?(byQuarter[q][prod]?.packs||0):(byQuarter[q][prod]?.kg||0)),0);
+            const bg=i%2===0?"#fff":"#fafbfc";
+            return(
+              <tr key={prod} style={{borderBottom:`1px solid ${T.border}`,background:bg}}>
+                <td style={{padding:"9px 16px",fontWeight:600,color:T.textMain,position:"sticky",left:0,background:bg}}>{prod}</td>
+                {quarters.map(q=>{
+                  const v=unit==="packs"?(byQuarter[q][prod]?.packs||0):(byQuarter[q][prod]?.kg||0);
+                  return <td key={q} style={{textAlign:"right",padding:"9px 14px",color:v>0?T.textMain:"#ddd",fontSize:12}}>
+                    {v>0?(unit==="packs"?v:v.toFixed(1)):"—"}
+                  </td>;
+                })}
+                <td style={{textAlign:"right",padding:"9px 14px",fontWeight:800,color:T.sky}}>
+                  {unit==="packs"?rowTotal:rowTotal.toFixed(1)}
+                </td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      </div>
+      {Object.keys(allProds).length>5&&(
+        <p style={{fontSize:11,color:T.textSub,textAlign:"center",padding:"8px",margin:0,
+          borderTop:`1px solid ${T.border}`,background:"#f8fafb"}}>
+          Showing top 5 of {Object.keys(allProds).length} products · sorted by {unit==="packs"?"pack count":"weight"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ProductInsightsTab({sheets,dateRange}){
   const [sortBy,setSortBy]=useState("volume");
   const [unit,setUnit]=useState("kg"); // kg | packs
   const insights=useMemo(()=>sheets.length?computeProductInsights(sheets):null,[sheets]);
+  const quarterly=useMemo(()=>sheets.length?computeQuarterlyInsights(sheets):null,[sheets]);
   if(!insights)return<EmptyState/>;
 
   const sorted=useMemo(()=>[...insights.products].sort((a,b)=>{
@@ -629,69 +689,7 @@ function ProductInsightsTab({sheets,dateRange}){
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       {/* Quarterly Top 5 */}
-      {(()=>{
-        const {quarters,byQuarter}=computeQuarterlyInsights(sheets);
-        if(quarters.length===0) return null;
-        // Get top 5 products by total across all quarters
-        const allProds={};
-        for(const q of quarters) for(const[p,v]of Object.entries(byQuarter[q])){
-          if(!allProds[p])allProds[p]={packs:0,kg:0};
-          allProds[p].packs+=v.packs; allProds[p].kg+=v.kg;
-        }
-        const top5=Object.entries(allProds)
-          .sort((a,b)=>unit==="packs"?b[1].packs-a[1].packs:b[1].kg-a[1].kg)
-          .slice(0,5).map(([name])=>name);
-        return(
-          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-            <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:0}}>Top 5 Products by Quarter</p>
-                <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>
-                  {quarters.length} quarter{quarters.length!==1?"s":""} of data · showing {unit==="packs"?"pack counts":"kg harvested"}
-                </p>
-              </div>
-            </div>
-            <div style={{overflow:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{background:T.textMain}}>
-                  <th style={{textAlign:"left",padding:"9px 16px",color:"#fff",fontWeight:700,fontSize:11,
-                    textTransform:"uppercase",position:"sticky",left:0,background:T.textMain,minWidth:160}}>Product</th>
-                  {quarters.map(q=>(
-                    <th key={q} style={{textAlign:"right",padding:"9px 14px",color:"#fff",fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{q}</th>
-                  ))}
-                  <th style={{textAlign:"right",padding:"9px 14px",color:T.green,fontWeight:700,fontSize:11,background:"#0a1b2a"}}>
-                    Total
-                  </th>
-                </tr></thead>
-                <tbody>{top5.map((prod,i)=>{
-                  const rowTotal=quarters.reduce((s,q)=>s+(unit==="packs"?(byQuarter[q][prod]?.packs||0):(byQuarter[q][prod]?.kg||0)),0);
-                  const bg=i%2===0?"#fff":"#fafbfc";
-                  return(
-                    <tr key={prod} style={{borderBottom:`1px solid ${T.border}`,background:bg}}>
-                      <td style={{padding:"9px 16px",fontWeight:600,color:T.textMain,position:"sticky",left:0,background:bg}}>{prod}</td>
-                      {quarters.map(q=>{
-                        const v=unit==="packs"?(byQuarter[q][prod]?.packs||0):(byQuarter[q][prod]?.kg||0);
-                        return <td key={q} style={{textAlign:"right",padding:"9px 14px",color:v>0?T.textMain:"#ddd"}}>
-                          {v>0?(unit==="packs"?v:v.toFixed(1)):"—"}
-                        </td>;
-                      })}
-                      <td style={{textAlign:"right",padding:"9px 14px",fontWeight:800,color:T.sky}}>
-                        {unit==="packs"?rowTotal:rowTotal.toFixed(1)}
-                      </td>
-                    </tr>
-                  );
-                })}</tbody>
-              </table>
-            </div>
-            {Object.keys(allProds).length>5&&(
-              <p style={{fontSize:11,color:T.textSub,textAlign:"center",padding:"8px",margin:0,
-                borderTop:`1px solid ${T.border}`,background:"#f8fafb"}}>
-                Showing top 5 of {Object.keys(allProds).length} products · sorted by {unit==="packs"?"pack count":"weight"}
-              </p>
-            )}
-          </div>
-        );
-      })()}
+      {quarterly&&<QuarterlyTop5 quarterly={quarterly} unit={unit}/>}
 
       {/* Product volume ranking */}
       <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
@@ -845,7 +843,7 @@ function CustomerInsightsTab({sheets,dateRange}){
       if(col==="fri")     return m*(unit==="kg"?a.friKg-b.friKg:a.fri-b.fri);
       return 0;
     });
-  },[insights,filterTier,sortConfig]);
+  },[insights,filterTier,sortConfig,unit]);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
