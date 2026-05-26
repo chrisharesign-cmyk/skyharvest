@@ -1406,12 +1406,6 @@ function OrderInboxWrapper() {
 
 // ── VIEWS object ──────────────────────────────────────────────────────────────
 
-// ── BusinessInsights wrapper (reads shared sheets from context) ───────────────
-function BusinessInsightsWrapper() {
-  const { sheets } = useReportingSheets();
-  return <BusinessInsights sheets={sheets} />;
-}
-
 const VIEWS = {
   dashboard:   <DashboardView/>,
   plantings:   <PlantingsView/>,
