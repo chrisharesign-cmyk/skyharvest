@@ -7,6 +7,83 @@ const T = {
 };
 
 // ── Fabricated incoming orders (red = invented) ───────────────────────────────
+
+const STANDING_EMAILS = [
+  {
+    customer:"SPUD Vancouver",
+    sent:"Mon 26 May, 07:00",
+    subject:"Your Sky Harvest standing order — Wednesday 28 May",
+    body:`Hi SPUD Team,
+
+Your standing order is confirmed for Wednesday 28 May delivery.
+
+Here's what we have scheduled:
+• Pea Shoots (M) × 49 — $185.82
+• Pea Shoots (SPUD Label) × 24 — $91.20  
+• Sunflower Shoots (RETAIL) × 43 — $167.70
+• Radish Blend (SPUD Label) × 16 — $60.80
+
+Total: $505.52 + GST
+
+Reply to this email by Tuesday 10am to make any changes.
+No reply needed if everything looks good — we'll see you Wednesday morning.
+
+Chris & the Sky Harvest team
+orders@skyharvest.ca`,
+    reply:null,
+    status:"auto-confirmed"
+  },
+  {
+    customer:"Choices North Van",
+    sent:"Mon 26 May, 07:00",
+    subject:"Your Sky Harvest standing order — Wednesday 28 May",
+    body:`Hi Choices North Van,
+
+Your standing order is confirmed for Wednesday 28 May delivery.
+
+Here's what we have scheduled:
+• Pea Shoots (M) × 12 — $45.48
+• Sunflower Shoots (M) × 8 — $31.20
+• Radish Blend (M) × 6 — $22.80
+• Kale (S) × 4 — $9.60
+
+Total: $109.08 + GST
+
+Reply to this email by Tuesday 10am to make any changes.
+
+Chris & the Sky Harvest team`,
+    reply:{
+      from:"buying@choices.ca",
+      time:"Mon 26 May, 09:14",
+      text:"Hi Chris! Could you add 2 extra Pea Shoots (M) this week? We've got a big event Wednesday evening. Thanks!"
+    },
+    status:"amended",
+    parsedAmendment:{product:"Pea Shoots (M)", change:"+2", newQty:14}
+  },
+  {
+    customer:"Terminal City Club",
+    sent:"Mon 26 May, 07:00",
+    subject:"Your Sky Harvest standing order — Wednesday 28 May",
+    body:`Hi Terminal City Club,
+
+Your standing order is confirmed for Wednesday 28 May delivery.
+
+Here's what we have scheduled:
+• Pea Shoots (M) × 8 — $30.32
+• Sunflower Shoots (L) × 4 — $31.60
+• Mellow Mix (L) × 3 — $27.48
+• Cilantro (M) × 2 — $5.30
+
+Total: $94.70 + GST
+
+Reply by Tuesday 10am for any changes.
+
+Chris & the Sky Harvest team`,
+    reply:null,
+    status:"no-reply-confirmed"
+  },
+];
+
 const INBOX = [
   {
     id:"msg-001",
@@ -260,7 +337,18 @@ export default function OrderInbox() {
 
         {tab === "standing" && (
           <div style={{flex:1,overflowY:"auto",padding:"8px 0"}}>
-            <p style={{fontSize:10,fontWeight:700,color:T.label,letterSpacing:"0.08em",padding:"8px 14px 4px",margin:0,textTransform:"uppercase"}}>Active standing orders</p>
+            <p style={{fontSize:10,fontWeight:700,color:T.label,letterSpacing:"0.08em",padding:"8px 14px 4px",margin:0,textTransform:"uppercase"}}>Monday morning emails sent</p>
+            {STANDING_EMAILS.map((s,i)=>(
+              <button key={s.customer} onClick={()=>setSelectedMsg({id:`se-${i}`,channel:"email",from:`${s.customer}`,customer:s.customer,subject:s.subject,body:s.body,received:s.sent,status:s.reply?"needs_review":"confirmed",fab:true,standingEmail:true,reply:s.reply,parsedAmendment:s.parsedAmendment,parsed:{delivery:"2026-05-28",confidence:"high",items:[]}})}
+                style={{width:"100%",textAlign:"left",padding:"10px 14px",background:selectedMsg?.id===`se-${i}`?"#f0f7ff":"transparent",border:"none",borderBottom:`1px solid ${T.border}`,cursor:"pointer"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <span style={{fontSize:12,fontWeight:700,color:T.textMain}}>{s.customer}</span>
+                  <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:s.reply?"#fef3dc":s.status==="auto-confirmed"?"#e8f6dc":"#e8f0fb",color:s.reply?"#7a5000":s.status==="auto-confirmed"?"#2a6010":"#1a3a7a"}}>{s.reply?"Reply received":s.status==="auto-confirmed"?"Auto-confirmed":"No reply — confirmed"}</span>
+                </div>
+                <p style={{fontSize:10,color:T.textSub,margin:0}}>{s.sent}</p>
+              </button>
+            ))}
+            <p style={{fontSize:10,fontWeight:700,color:T.label,letterSpacing:"0.08em",padding:"14px 14px 4px",margin:0,textTransform:"uppercase"}}>All standing orders</p>
             {STANDING_ORDERS.map((s,i)=>(
               <div key={s.customer} style={{padding:"10px 14px",borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -340,6 +428,20 @@ export default function OrderInbox() {
                  selectedMsg.channel === "whatsapp"  ? "💬 WhatsApp message" : "✉️ Email"}
               </p>
 
+              {selectedMsg.standingEmail && selectedMsg.reply && (
+                <div style={{background:"#e8f6dc",border:"1px solid #c8e8a8",borderRadius:8,padding:12,marginBottom:12}}>
+                  <p style={{fontSize:11,fontWeight:700,color:"#2a6010",margin:"0 0 4px"}}>↩ Customer replied · {selectedMsg.reply.time}</p>
+                  <p style={{fontSize:12,color:T.textMain,margin:"0 0 8px",fontStyle:"italic"}}>"{selectedMsg.reply.text}"</p>
+                  {selectedMsg.parsedAmendment && (
+                    <div style={{background:"#fff",borderRadius:6,padding:"8px 12px",fontSize:12}}>
+                      <span style={{fontWeight:700,color:T.textMain}}>Claude parsed: </span>
+                      <span style={{color:T.sky}}>{selectedMsg.parsedAmendment.product}</span>
+                      <span style={{color:T.amber,fontWeight:700}}> {selectedMsg.parsedAmendment.change}</span>
+                      <span style={{color:T.textSub}}> → new qty: {selectedMsg.parsedAmendment.newQty}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {selectedMsg.channel === "voicemail" && (
                 <div style={{background:"#fce7f3",border:"1px solid #f9a8d4",borderRadius:8,padding:12,marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
                   <span style={{fontSize:20}}>🎙️</span>
