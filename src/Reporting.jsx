@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useReportingSheets } from "./reportingContext.js";
+import BusinessInsights from "./BusinessInsights.jsx";
 import * as XLSX from "xlsx";
 
 const T = {
@@ -1132,6 +1133,7 @@ export default function Reporting(){
     {id:"report",   label:"📊 Harvest Report"},
     {id:"customers",label:"👥 Customer Insights"},
     {id:"products", label:"🌱 Product Insights"},
+    {id:"insights", label:"💡 Business Insights"},
   ];
 
   return(
@@ -1261,6 +1263,7 @@ export default function Reporting(){
       {activeTab==="report"    && <HarvestReportTab    sheets={filteredSheets}/>}
       {activeTab==="customers" && <CustomerInsightsTab sheets={filteredSheets}/>}
       {activeTab==="products"  && <ProductInsightsTab  sheets={filteredSheets}/>}
+      {activeTab==="insights"  && <BusinessInsights    sheets={filteredSheets}/>}
     </div>
   );
 }
