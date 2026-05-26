@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useReportingSheets } from "./reportingContext.js";
 import * as XLSX from "xlsx";
 
 const T = {
@@ -139,11 +140,52 @@ function parseXlsxFull(buffer){
         headerRow=i; hasAICalc=true; break;
       }
     }
-    // If no AI Calc column, this is a pre-March sheet with units only — skip weight parsing
+    // If no AI Calc column, this is a pre-March sheet with units only
     if(!hasAICalc){
+      // Still extract customer orders using the units-only column
+      const legacyCustCols={};
+      // Find header row: look for "Short:" in col 1 or "Sub" in col 2/3
+      let legacyHdr=3; // default
+      for(let i=0;i<Math.min(6,raw.length);i++){
+        if(raw[i]&&String(raw[i][1]||"").toLowerCase().includes("short")) { legacyHdr=i; break; }
+      }
+      const lhdr=raw[legacyHdr]||[];
+      for(let col=20;col<lhdr.length;col++){
+        const v=lhdr[col];
+        if(v&&typeof v==="string"&&v.trim().length>1&&!v.includes("Unnamed")){
+          legacyCustCols[col]=v.trim().replace(/\s*\(QB\)\s*/g,"").trim();
+        }
+      }
+      // Find units column: "Sub- total" or "Sub-total" typically col 2 or 3
+      let unitsCol=3;
+      for(let c=2;c<=5;c++){
+        if(lhdr[c]&&String(lhdr[c]).toLowerCase().includes("sub")) { unitsCol=c; break; }
+      }
+      const legacyCustOrders={};
+      for(let i=legacyHdr+1;i<raw.length;i++){
+        const r=raw[i];if(!r)continue;
+        const nm=r[1];
+        if(!nm||typeof nm!=="string")continue;
+        if(SKIP.some(p=>p.test(nm.trim())))continue;
+        const prodName=nm.trim();
+        for(const[col,cust]of Object.entries(legacyCustCols)){
+          const qty=r[parseInt(col)];
+          // Handle "0(1)" string format = backordered: extract the ordered qty
+          let qtyNum=0;
+          if(typeof qty==="number"&&qty>0&&qty<500) qtyNum=qty;
+          else if(typeof qty==="string"){
+            const m=qty.match(/\((\d+)\)/);
+            if(m) qtyNum=parseInt(m[1]);
+          }
+          if(qtyNum>0){
+            if(!legacyCustOrders[cust])legacyCustOrders[cust]={};
+            legacyCustOrders[cust][prodName]=(legacyCustOrders[cust][prodName]||0)+qtyNum;
+          }
+        }
+      }
       sheets.push({date,sheetName:sn,isFriday:isFriday(sn),
-        cropRows:[],customerOrders:{},f134:null,
-        noWeightData:true, // flag: pre-AI-Calc sheet
+        cropRows:[],customerOrders:legacyCustOrders,f134:null,
+        noWeightData:true,
       });
       continue;
     }
@@ -1017,6 +1059,11 @@ function EmptyState(){
 export default function Reporting(){
   const [activeTab,setActiveTab]=useState("report");
   const [sheets,setSheets]=useState([]);
+  const { setSheets: setSharedSheets } = (() => {
+    try { return useReportingSheets(); }
+    catch(e) { return { setSheets: ()=>{} }; }
+  })();
+  useEffect(() => { setSharedSheets(sheets); }, [sheets]);
   const [loading,setLoading]=useState(false);
   const [loadedFiles,setLoadedFiles]=useState([]);
   const [showDriveInfo,setShowDriveInfo]=useState(false);
