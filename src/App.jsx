@@ -54,6 +54,7 @@ const NAV = [
   ]},
   { section: "SYSTEM", items: [
     { id:"roadmap",    label:"What's Possible",  icon:"🚀", color:"#6b3a8a" },
+    { id:"legacy",     label:"Legacy Site",      icon:"🔗", color:"#5a7080" },
   ]},
 ];
 
@@ -699,6 +700,56 @@ function TrayHealthView(){
   );
 }
 
+function LegacySiteView() {
+  return (
+    <div style={{maxWidth:600}}>
+      <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+        <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+          <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Interim access</p>
+          <h3 style={{fontSize:16,fontWeight:900,color:T.textMain,margin:0}}>Legacy Site</h3>
+        </div>
+        <div style={{padding:20}}>
+          <p style={{fontSize:13,color:T.textSub,margin:"0 0 20px",lineHeight:1.6}}>
+            The legacy site gives Chris Arthur and the Sky Harvest team access to interim functionality
+            while the full system is being built. It uses the same branding but shows only the tools
+            that are ready.
+          </p>
+          <div style={{background:"#f0f6fb",borderRadius:10,border:`1px solid ${T.border}`,padding:16,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{fontSize:20}}>📊</span>
+              <div>
+                <p style={{fontSize:13,fontWeight:700,color:T.textMain,margin:0}}>Harvest Report</p>
+                <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>Upload Wednesday and Friday xlsx files → instant crop weight report</p>
+              </div>
+            </div>
+            <p style={{fontSize:11,color:T.textSub,margin:"0 0 10px"}}>Live and working with real data. This is what ChatGPT couldn't deliver.</p>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <a href="https://skyharvest-legacy.netlify.app" target="_blank" rel="noreferrer"
+              style={{flex:1,display:"block",padding:"10px 16px",background:T.sky,color:"#fff",borderRadius:8,fontSize:13,fontWeight:700,textAlign:"center",textDecoration:"none"}}>
+              Open Legacy Site ↗
+            </a>
+            <button style={{padding:"10px 16px",borderRadius:8,border:`1px solid ${T.border}`,fontSize:13,fontWeight:700,color:T.textSub,cursor:"pointer",background:"#fff"}}>
+              Copy link
+            </button>
+          </div>
+          <p style={{fontSize:11,color:T.textSub,margin:"12px 0 0",textAlign:"center",fontStyle:"italic"}}>
+            Legacy site will be deployed separately — same nav, one link
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HarvestManagerEmbed() {
+  return (
+    <div style={{position:"fixed",top:44,left:234,right:0,bottom:0,zIndex:1}}>
+      <HarvestManager/>
+    </div>
+  );
+}
+
 const VIEWS = {
   dashboard:   <DashboardView/>,
   plantings:   <PlantingsView/>,
@@ -707,7 +758,8 @@ const VIEWS = {
   harvests:    <HarvestReportView/>,
   roadmap:     <RoadmapView/>,
   trayhealth:  <TrayHealthView/>,
-  harvestruns: <div style={{height:"calc(100vh - 52px - 40px)",overflow:"hidden",margin:"-24px"}}><HarvestManager/></div>,
+  harvestruns: <HarvestManagerEmbed/>,
+  legacy: <LegacySiteView/>,
 };
 
 const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
