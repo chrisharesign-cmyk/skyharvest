@@ -1504,8 +1504,10 @@ export default function SkyHarvestMIS() {
     <div style={{display:"flex",height:"100vh",overflow:"hidden",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
 
       {/* Sidebar — desktop only */}
+      {/* Hide webkit scrollbar globally for sidebar */}
+      <style>{`.sh-nav::-webkit-scrollbar{display:none}`}</style>
       {!isMobile && <div style={{width:234,background:T.sidebar,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
-        <div style={{padding:"14px 14px 12px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{padding:"12px 12px 10px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <div style={{width:34,height:34,borderRadius:8,background:`linear-gradient(135deg,${T.green},${T.sky})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff",flexShrink:0}}>SH</div>
             <div>
@@ -1522,15 +1524,15 @@ export default function SkyHarvestMIS() {
             <span style={{color:T.textDim,fontSize:12,cursor:"pointer",flexShrink:0}}>↪</span>
           </div>
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:"6px 0"}}>
+        <div className="sh-nav" style={{flex:1,overflowY:"auto",padding:"6px 0",scrollbarWidth:"none",msOverflowStyle:"none"}}>
           {NAV.map(section=>(
             <div key={section.section}>
-              <p style={{fontSize:10,fontWeight:700,color:T.label,letterSpacing:"0.1em",padding:"10px 14px 4px",margin:0}}>{section.section}</p>
+              <p style={{fontSize:10,fontWeight:700,color:T.label,letterSpacing:"0.1em",padding:"7px 14px 3px",margin:0}}>{section.section}</p>
               {section.items.map(item=>{
                 const isActive=active===item.id;
                 return(
                   <button key={item.id} onClick={()=>handleNav(item.id)}
-                    style={{width:"calc(100% - 16px)",display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:isActive?T.activeBg:"transparent",border:"none",cursor:"pointer",textAlign:"left",borderRadius:7,margin:"1px 8px",transition:"background 0.12s"}}>
+                    style={{width:"calc(100% - 16px)",display:"flex",alignItems:"center",gap:10,padding:"6px 12px",background:isActive?T.activeBg:"transparent",border:"none",cursor:"pointer",textAlign:"left",borderRadius:7,margin:"1px 8px",transition:"background 0.12s"}}>
                     <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>{item.icon}</span>
                     <span style={{fontSize:13,fontWeight:isActive?700:500,color:isActive?"#fff":T.text,flex:1}}>{item.label}</span>
                     {isActive&&<div style={{width:3,height:16,borderRadius:2,background:T.green,flexShrink:0}}/>}
