@@ -1489,6 +1489,7 @@ export default function SkyHarvestMIS() {
   const [active, setActive] = useState("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sharedSheets, setSharedSheets] = useState([]);
+  const [sharedPeriodLabel, setSharedPeriodLabel] = useState("All data");
   const isMobile = useMobile();
 
   const handleNav = (id) => {
@@ -1498,7 +1499,7 @@ export default function SkyHarvestMIS() {
   };
 
   return (
-    <ReportingSheetsContext.Provider value={{sheets:sharedSheets,setSheets:setSharedSheets}}>
+    <ReportingSheetsContext.Provider value={{sheets:sharedSheets,setSheets:setSharedSheets,periodLabel:sharedPeriodLabel,setPeriodLabel:setSharedPeriodLabel}}>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
 
       {/* Sidebar — desktop only */}
