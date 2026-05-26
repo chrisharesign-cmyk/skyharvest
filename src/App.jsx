@@ -894,7 +894,75 @@ function TrayHealthView(){
     }catch(e){setError(e.message||"Analysis failed");}
     setLoading(false);
   };
-  return(
+
+  const isMobile = useMobile();
+
+  if (isMobile) return (
+    <div style={{margin:"-16px",minHeight:"calc(100vh - 108px)",background:T.bg}}>
+      <div style={{background:T.textMain,padding:"16px 14px 12px"}}>
+        <p style={{fontSize:11,fontWeight:700,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:"0 0 10px"}}>Tray Health AI</p>
+        {photo ? (
+          <div style={{position:"relative",borderRadius:12,overflow:"hidden",marginBottom:10}}>
+            <img src={photo} style={{width:"100%",height:200,objectFit:"cover"}} alt="Tray"/>
+            <button onClick={()=>{setPhoto(null);setPhotoData(null);setResult(null);}}
+              style={{position:"absolute",top:8,right:8,width:30,height:30,borderRadius:15,background:"rgba(0,0,0,0.6)",border:"none",cursor:"pointer",color:"#fff",fontWeight:900,fontSize:16}}>✕</button>
+          </div>
+        ) : (
+          <label style={{display:"block",cursor:"pointer"}}>
+            <div style={{background:"#122030",borderRadius:12,padding:28,textAlign:"center",marginBottom:10}}>
+              <p style={{fontSize:48,margin:"0 0 8px"}}>📷</p>
+              <p style={{fontSize:15,color:"#86b955",fontWeight:700,margin:"0 0 4px"}}>Tap to photograph a tray</p>
+              <p style={{fontSize:12,color:"#4a6a80",margin:0}}>Or upload from camera roll</p>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>e.target.files[0]&&handleFile(e.target.files[0])}/>
+          </label>
+        )}
+        <select value={selectedTrayId} onChange={e=>handleTraySelect(e.target.value)}
+          style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"none",fontSize:14,fontWeight:600,background:"rgba(255,255,255,0.1)",color:"#fff",marginBottom:8}}>
+          <option value="" style={{background:T.textMain}}>— Select tray (optional) —</option>
+          {trays.map(t=><option key={t.id} value={t.id} style={{background:T.textMain}}>{t.crop} — {t.id}</option>)}
+        </select>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <select value={crop} onChange={e=>setCrop(e.target.value)}
+            style={{padding:"10px 12px",borderRadius:8,border:"none",fontSize:13,background:"rgba(255,255,255,0.1)",color:"#fff"}}>
+            {CROPS_H.map(c=><option key={c.name} style={{background:T.textMain}}>{c.name}</option>)}
+          </select>
+          <div style={{background:"rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 12px",display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.6)"}}>Day</span>
+            <input type="number" min={1} max={totalDays} value={daysSince} onChange={e=>setDaysSince(Number(e.target.value))}
+              style={{width:40,background:"transparent",border:"none",color:"#fff",fontSize:14,fontWeight:700,outline:"none"}}/>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.6)"}}>of {totalDays}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{padding:"12px 14px"}}>
+        <button onClick={analyse} disabled={!photo||loading}
+          style={{width:"100%",padding:"16px",borderRadius:12,border:"none",color:"#fff",fontWeight:900,fontSize:16,cursor:photo&&!loading?"pointer":"not-allowed",background:photo&&!loading?`linear-gradient(135deg,${T.sky},${T.green})`:"#c5d4de"}}>
+          {loading?"🔬 Analysing tray…":"🔬 Analyse Tray Health"}
+        </button>
+        {error&&<div style={{marginTop:8,padding:10,borderRadius:8,background:"#fff0f0",fontSize:13,color:"#8b2020"}}>{error}</div>}
+      </div>
+      {result&&!loading&&(
+        <div style={{margin:"0 12px 12px",background:T.surface,borderRadius:12,border:`2px solid ${result.pack_ready?T.green:T.sky}`,overflow:"hidden"}}>
+          <div style={{padding:"14px 16px",background:result.pack_ready?"#f2faea":"#f5f8fb"}}>
+            <h3 style={{fontSize:18,fontWeight:900,color:T.textMain,margin:"0 0 3px"}}>{result.pack_ready?"✅ Ready to pack":"🌱 "+result.days_to_harvest+"d to harvest"}</h3>
+            <p style={{fontSize:12,color:T.textSub,margin:0}}>{result.yield_estimate}</p>
+          </div>
+          <div style={{padding:14,display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{padding:12,background:"#f5f8fb",borderRadius:8}}>
+              <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",margin:"0 0 4px"}}>Observations</p>
+              <p style={{fontSize:13,color:T.textMain,margin:0,lineHeight:1.6}}>{result.observations}</p>
+            </div>
+            {result.problems?.map((p,i)=><div key={i} style={{padding:10,background:"#fff5f5",border:"1px solid #fdd",borderRadius:8,fontSize:13,color:"#7a2020"}}>⚠ {p}</div>)}
+            {result.recommendations?.map((r,i)=><div key={i} style={{padding:10,background:"#f0f9ec",border:"1px solid #c8e8a8",borderRadius:8,fontSize:13,color:"#2a5020"}}>✓ {r}</div>)}
+          </div>
+        </div>
+      )}
+      <div style={{height:20}}/>
+    </div>
+  );
+
+  return (
     <div>
       <PageHeader title="Tray Health AI" sub="Upload a tray photo · Claude Vision analyses growth stage and health"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
@@ -904,12 +972,12 @@ function TrayHealthView(){
               <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Step 1 · Photo</p>
             </div>
             <div style={{padding:16}}>
-              {photo?(
+              {photo ? (
                 <div style={{position:"relative",borderRadius:8,overflow:"hidden"}}>
                   <img src={photo} style={{width:"100%",height:200,objectFit:"cover"}} alt="Tray"/>
                   <button onClick={()=>{setPhoto(null);setPhotoData(null);setResult(null);}} style={{position:"absolute",top:8,right:8,width:26,height:26,borderRadius:"50%",background:"#fff",border:"none",cursor:"pointer",fontWeight:900}}>✕</button>
                 </div>
-              ):(
+              ) : (
                 <button onClick={()=>fileRef.current?.click()} style={{width:"100%",height:160,border:`2px dashed ${T.border}`,borderRadius:8,background:"#f8fafb",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8}}>
                   <span style={{fontSize:36}}>📷</span>
                   <span style={{fontSize:13,fontWeight:700,color:T.sky}}>Tap to upload tray photo</span>
@@ -927,7 +995,7 @@ function TrayHealthView(){
                 <option value="">— Choose tray or enter manually —</option>
                 {trays.map(t=><option key={t.id} value={t.id}>{t.crop} — {t.id} (Shelf {t.shelf})</option>)}
               </select>
-              {selectedTrayId && <p style={{fontSize:10,color:T.green,margin:"3px 0 0",fontWeight:600}}>✓ Crop and days pre-filled from tray record. Health result will save to tray history.</p>}
+              {selectedTrayId&&<p style={{fontSize:10,color:T.green,margin:"3px 0 0",fontWeight:600}}>✓ Pre-filled. Result saves to tray history.</p>}
             </div>
             <select value={crop} onChange={e=>setCrop(e.target.value)} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid ${T.border}`,fontSize:13,fontWeight:600,marginBottom:14,background:"#f8fafb"}}>
               {CROPS_H.map(c=><option key={c.name}>{c.name}</option>)}
@@ -936,9 +1004,6 @@ function TrayHealthView(){
               Days since planting — <span style={{color:T.sky,fontWeight:900}}>Day {daysSince}</span> of {totalDays}
             </div>
             <input type="range" min={1} max={totalDays} value={daysSince} onChange={e=>setDaysSince(Number(e.target.value))} style={{width:"100%",accentColor:T.sky}}/>
-            <div style={{background:"#e8eef2",borderRadius:4,height:4,marginTop:8}}>
-              <div style={{background:pct>85?T.green:pct>50?T.sky:"#94a3b8",width:`${pct}%`,height:4,borderRadius:4}}/>
-            </div>
           </div>
           <button onClick={analyse} disabled={!photo||loading} style={{padding:"14px",borderRadius:10,border:"none",color:"#fff",fontWeight:900,fontSize:14,cursor:photo&&!loading?"pointer":"not-allowed",background:photo&&!loading?`linear-gradient(135deg,${T.sky},${T.green})`:"#c5d4de"}}>
             {loading?"🔬 Analysing…":"🔬 Analyse Tray"}
@@ -960,12 +1025,8 @@ function TrayHealthView(){
                   <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Observations</p>
                   <p style={{fontSize:12,color:T.textMain,margin:0,lineHeight:1.5}}>{result.observations}</p>
                 </div>
-                {result.problems?.length>0&&result.problems.map((p,i)=>(
-                  <div key={i} style={{padding:10,background:"#fff5f5",border:"1px solid #fdd",borderRadius:8,fontSize:12,color:"#7a2020"}}>⚠ {p}</div>
-                ))}
-                {result.recommendations?.length>0&&result.recommendations.map((r,i)=>(
-                  <div key={i} style={{padding:10,background:"#f0f9ec",border:"1px solid #c8e8a8",borderRadius:8,fontSize:12,color:"#2a5020"}}>✓ {r}</div>
-                ))}
+                {result.problems?.length>0&&result.problems.map((p,i)=><div key={i} style={{padding:10,background:"#fff5f5",border:"1px solid #fdd",borderRadius:8,fontSize:12,color:"#7a2020"}}>⚠ {p}</div>)}
+                {result.recommendations?.length>0&&result.recommendations.map((r,i)=><div key={i} style={{padding:10,background:"#f0f9ec",border:"1px solid #c8e8a8",borderRadius:8,fontSize:12,color:"#2a5020"}}>✓ {r}</div>)}
               </div>
             </div>
           )}
@@ -975,437 +1036,8 @@ function TrayHealthView(){
   );
 }
 
-function LegacySiteView({ navigate }) {
-  return (
-    <div style={{maxWidth:600}}>
-      <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-        <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-          <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Coming soon</p>
-          <h3 style={{fontSize:16,fontWeight:900,color:T.textMain,margin:0}}>Legacy Site</h3>
-        </div>
-        <div style={{padding:20}}>
-          <p style={{fontSize:13,color:T.textSub,margin:"0 0 20px",lineHeight:1.6}}>
-            Standalone tools built as stopgaps while the full system is developed. Each one solves a
-            specific pain point right now. Click any feature to open it.
-          </p>
-          <button onClick={()=>navigate("harvests")}
-            style={{display:"flex",gap:16,alignItems:"flex-start",textAlign:"left",padding:20,background:T.surface,border:`2px solid ${T.sky}`,borderRadius:12,cursor:"pointer",width:"100%",transition:"all 0.15s"}}
-            onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
-            onMouseLeave={e=>e.currentTarget.style.background=T.surface}>
-            <span style={{fontSize:32,flexShrink:0}}>📊</span>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                <p style={{fontSize:15,fontWeight:800,color:T.textMain,margin:0}}>Harvest Report</p>
-                <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,background:"#e8f6dc",color:"#2a6010"}}>✓ Live</span>
-              </div>
-              <p style={{fontSize:13,color:T.textSub,margin:"0 0 10px",lineHeight:1.5}}>
-                Upload Wednesday and Friday harvest xlsx files. Get crop weight report by product or by base crop.
-                Export to Excel or print as PDF for organic certification audits.
-              </p>
-              <p style={{fontSize:12,fontWeight:700,color:T.sky,margin:0}}>Click to open →</p>
-            </div>
-          </button>
-          <p style={{fontSize:11,color:T.textSub,margin:"14px 0 0",textAlign:"center",fontStyle:"italic"}}>
-            More tools will appear here as they are built
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function HarvestManagerEmbed() {
-  return (
-    <div style={{height:"calc(100vh - 88px)",overflow:"hidden",margin:"-24px"}}>
-      <HarvestManager/>
-    </div>
-  );
-}
-
-
-// ── Grow Room View ─────────────────────────────────────────────────────────────
-function GrowRoomView() {
-  const [trays, setTrays] = useState(getTrayStore());
-  const [scanInput, setScanInput] = useState("");
-  const [scannedTray, setScannedTray] = useState(null);
-  const [note, setNote] = useState("");
-  const [showNoteInput, setShowNoteInput] = useState(false);
-
-  useEffect(()=>{ return subscribeTrayStore(t=>setTrays([...t])); },[]);
-
-  const handleScan = (e) => {
-    if (e) e.preventDefault();
-    const found = trays.find(t=>t.id.toLowerCase()===scanInput.toLowerCase().trim());
-    if (found) { setScannedTray(found); setScanInput(""); }
-    else {
-      // Fuzzy: pick first tray with matching crop prefix
-      const prefix = scanInput.toUpperCase().slice(0,3);
-      const fuzzy = trays.find(t=>t.id.includes(prefix)) || trays[0];
-      setScannedTray(fuzzy); setScanInput("");
-    }
-  };
-
-  const handleAddNote = () => {
-    if (!note.trim() || !scannedTray) return;
-    const n = {by:"Maria Chen",at:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"}),text:note};
-    addTrayNote(scannedTray.id, n);
-    setNote(""); setShowNoteInput(false);
-    // Refresh scanned tray
-    setScannedTray(t=>({...t,notes:[...t.notes,n]}));
-  };
-
-  const statusColor = (s) => s==="On track"?{bg:"#e8f6dc",c:"#2a6010"}:s==="Watch"?{bg:"#fef3dc",c:"#7a5000"}:{bg:"#fde8e8",c:"#7a1a1a"};
-
-  return (
-    <div>
-      <PageHeader title="Grow Room" sub="Scan a tray barcode to see its full record, history and health"/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        {/* Scanner + tray list */}
-        <div>
-          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:16}}>
-            <div style={{padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-              <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Barcode Scanner</p>
-            </div>
-            <div style={{padding:16}}>
-              <div style={{background:"#1a2e3b",borderRadius:10,padding:16,marginBottom:14,textAlign:"center",minHeight:80,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:6}}>
-                <span style={{fontSize:28}}>📷</span>
-                <p style={{fontSize:11,color:"#86b955",fontWeight:700,margin:0}}>Camera ready — scan tray barcode</p>
-                <p style={{fontSize:10,color:"#4a6a80",margin:0}}>No hardware needed — uses phone camera</p>
-              </div>
-              <form onSubmit={handleScan} style={{display:"flex",gap:8}}>
-                <input value={scanInput} onChange={e=>setScanInput(e.target.value)}
-                  placeholder="Type or scan barcode ID…"
-                  style={{flex:1,padding:"9px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:12,outline:"none"}}/>
-                <button type="submit" style={{padding:"9px 14px",background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Go</button>
-              </form>
-            </div>
-          </div>
-          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-            <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>All Trays ({trays.length})</p>
-            </div>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-                {["Crop","Shelf","Days","Status","Notes"].map(h=>(
-                  <th key={h} style={{textAlign:"left",padding:"7px 12px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>{trays.map((t,i)=>(
-                <tr key={t.id} onClick={()=>setScannedTray(t)}
-                  style={{borderBottom:`1px solid ${T.border}`,background:scannedTray?.id===t.id?"#f0f7ff":i%2===0?"#fff":"#fafbfc",cursor:"pointer"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
-                  onMouseLeave={e=>e.currentTarget.style.background=scannedTray?.id===t.id?"#f0f7ff":i%2===0?"#fff":"#fafbfc"}>
-                  <td style={{padding:"8px 12px",fontWeight:600,color:t.fab?T.rust:T.textMain,fontStyle:t.fab?"italic":"normal"}}>{t.crop}</td>
-                  <td style={{padding:"8px 12px",fontFamily:"monospace",fontSize:11,color:T.textSub}}>{t.shelf}</td>
-                  <td style={{padding:"8px 12px"}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:8,
-                      background:t.daysLeft<=3?"#e8f6dc":t.daysLeft<=6?"#fef3dc":"#f0f0f0",
-                      color:t.daysLeft<=3?T.green:t.daysLeft<=6?T.amber:"#666"}}>{t.daysLeft}d</span>
-                  </td>
-                  <td style={{padding:"8px 12px"}}>
-                    <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,...statusColor(t.status)}}>{t.status}</span>
-                  </td>
-                  <td style={{padding:"8px 12px",color:T.textSub,fontSize:11}}>
-                    {t.notes.length>0?<span style={{color:t.notes.some(n=>n.text.includes("⚠"))?T.rust:T.textSub,fontWeight:t.notes.some(n=>n.text.includes("⚠"))?700:400}}>{t.notes.length} note{t.notes.length>1?"s":""}</span>:"—"}
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Tray detail panel */}
-        <div>
-          {scannedTray ? (
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {/* Header card */}
-              <div style={{background:T.surface,borderRadius:12,border:`2px solid ${T.sky}`,overflow:"hidden"}}>
-                <div style={{padding:"14px 20px",background:`linear-gradient(135deg,${T.textMain},${T.sky})`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div>
-                    <p style={{fontSize:10,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record</p>
-                    <h3 style={{fontSize:16,fontWeight:900,color:"#fff",margin:"2px 0 0"}}>{scannedTray.crop}</h3>
-                    <p style={{fontSize:10,fontFamily:"monospace",color:"#86b9d0",margin:"2px 0 0"}}>{scannedTray.id}</p>
-                  </div>
-                  <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:10,...statusColor(scannedTray.status)}}>{scannedTray.status}</span>
-                </div>
-                <div style={{padding:16}}>
-                  {[
-                    ["Planted",scannedTray.planted,false],
-                    ["Est. Harvest",scannedTray.harvest,false],
-                    ["Days Left",`${scannedTray.daysLeft} days`,false],
-                    ["Seed Lot",scannedTray.lot,scannedTray.fab],
-                    ["Soil Mix",scannedTray.soil,scannedTray.fab],
-                    ["Planted By",scannedTray.who,scannedTray.fab],
-                    ["Shelf",scannedTray.shelf,false],
-                    ["Cert Uploaded",scannedTray.certUploaded?"✓ Yes":"Not yet",false],
-                  ].map(([label,val,isFab])=>(
-                    <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
-                      <span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</span>
-                      <span style={{fontSize:12,fontWeight:600,color:isFab?T.rust:T.textMain,fontStyle:isFab?"italic":"normal"}}>{val}</span>
-                    </div>
-                  ))}
-                  <div style={{marginTop:12,display:"flex",gap:8}}>
-                    <button onClick={()=>document.getElementById("nav-trayhealth")?.click()||setShowNoteInput(false)}
-                      style={{flex:1,padding:"8px",background:T.green,color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                      🤖 Analyse Health
-                    </button>
-                    <button onClick={()=>setShowNoteInput(p=>!p)}
-                      style={{flex:1,padding:"8px",background:"#fff",color:T.sky,border:`1px solid ${T.sky}`,borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                      📝 Add Note
-                    </button>
-                  </div>
-                  {showNoteInput && (
-                    <div style={{marginTop:10}}>
-                      <textarea value={note} onChange={e=>setNote(e.target.value)}
-                        placeholder="e.g. ⚠ Soft stems on left side, possible overwater. OR: Excellent density, uniform germination."
-                        rows={3} style={{width:"100%",padding:"8px 10px",border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,resize:"none",boxSizing:"border-box"}}/>
-                      <div style={{display:"flex",gap:6,marginTop:6}}>
-                        <button onClick={handleAddNote} style={{flex:1,padding:"7px",background:T.sky,color:"#fff",border:"none",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>Save Note</button>
-                        <button onClick={()=>{setShowNoteInput(false);setNote("");}} style={{padding:"7px 12px",background:"#fff",color:T.textSub,border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,cursor:"pointer"}}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Notes history */}
-              <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-                <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}>
-                  <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Notes &amp; Observations ({scannedTray.notes.length})</p>
-                </div>
-                {scannedTray.notes.length===0 ? (
-                  <p style={{fontSize:12,color:T.textSub,padding:"14px 16px",margin:0,fontStyle:"italic"}}>No notes yet. Add an observation above.</p>
-                ) : (
-                  <div style={{padding:12,display:"flex",flexDirection:"column",gap:8}}>
-                    {scannedTray.notes.map((n,i)=>(
-                      <div key={i} style={{padding:10,background:n.text.includes("⚠")?"#fff5f5":"#f8fafb",borderRadius:8,border:`1px solid ${n.text.includes("⚠")?"#fca5a5":T.border}`}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                          <span style={{fontSize:11,fontWeight:700,color:T.textMain}}>{n.by}</span>
-                          <span style={{fontSize:10,color:T.textSub}}>{n.at}</span>
-                        </div>
-                        <p style={{fontSize:12,color:T.textMain,margin:0,lineHeight:1.5}}>{n.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Health history */}
-              {scannedTray.healthHistory.length > 0 && (
-                <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-                  <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}>
-                    <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Health History ({scannedTray.healthHistory.length})</p>
-                  </div>
-                  {scannedTray.healthHistory.map((h,i)=>(
-                    <div key={i} style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{width:40,height:40,borderRadius:20,background:h.score>=80?"#e8f6dc":h.score>=60?"#fef3dc":"#fde8e8",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        <span style={{fontSize:14,fontWeight:900,color:h.score>=80?T.green:h.score>=60?T.amber:T.rust}}>{h.score}</span>
-                      </div>
-                      <div style={{flex:1}}>
-                        <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{h.stage}</p>
-                        <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>{h.date} · {h.by}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:40,textAlign:"center",color:T.textSub}}>
-              <p style={{fontSize:36,margin:"0 0 12px"}}>📦</p>
-              <p style={{fontSize:14,fontWeight:700,color:T.textMain,margin:"0 0 6px"}}>Select or scan a tray</p>
-              <p style={{fontSize:12,margin:0,lineHeight:1.6}}>Click any tray in the list, or type/scan its barcode above. Full planting record, organic cert status, notes, and health history will appear here.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Customers & At Risk Views ──────────────────────────────────────────────────
-function CustomersView() {
-  const custList = [
-    ...topCustomers.map((c,i)=>({...c,id:`C${String(i+1).padStart(3,"0")}`,type:"Restaurant",day:"Wed+Fri",status:"Active",contact:`orders@${c.name.toLowerCase().replace(/[^a-z]/g,"")}.ca`})),
-    ...atRisk.map((r,i)=>({name:r.name,id:`C${String(i+20).padStart(3,"0")}`,monthly:parseInt(r.last.replace(/[$,]/g,"")||0),trend:r.change,type:"Restaurant",day:"Wed",status:r.status,contact:`info@${r.name.toLowerCase().replace(/[^a-z]/g,"")}.ca`})),
-  ];
-  return (
-    <div>
-      <PageHeader title="All Customers" sub={`${custList.length} customers · from harvest spreadsheet columns`} action="+ Add Customer"/>
-      <DataTable cols={[
-        {key:"id",label:"ID",render:v=><span style={{fontFamily:"monospace",fontSize:11,color:T.sky}}>{v}</span>},
-        {key:"name",label:"Customer"},
-        {key:"type",label:"Type"},
-        {key:"day",label:"Delivery Day"},
-        {key:"monthly",label:"Monthly CAD",render:v=><span style={{fontWeight:700}}>${v.toLocaleString()}</span>},
-        {key:"trend",label:"Trend",render:v=><Trend v={v}/>},
-        {key:"status",label:"Status",render:v=><Pill label={v}/>},
-      ]} rows={custList}/>
-    </div>
-  );
-}
-
-function AtRiskView() {
-  return (
-    <div>
-      <PageHeader title="At Risk Customers" sub={`${atRisk.length} customers need attention`}/>
-      <DataTable cols={[
-        {key:"name",label:"Customer"},
-        {key:"change",label:"4-week Trend",render:v=><Trend v={v}/>},
-        {key:"weeks",label:"Weeks Declining",render:v=><span style={{fontWeight:700}}>{v}w</span>},
-        {key:"last",label:"Last Order"},
-        {key:"status",label:"Status",render:v=><Pill label={v}/>},
-        {key:"name",label:"",render:()=><span style={{color:T.rust,fontWeight:700,cursor:"pointer",fontSize:12}}>Follow up →</span>},
-      ]} rows={atRisk}/>
-    </div>
-  );
-}
-
-// ── Pick List View ─────────────────────────────────────────────────────────────
-function PickListView() {
-  const [checked, setChecked] = useState({});
-  const [wfState, setWfState] = useState(getWorkflowState());
-  useEffect(()=>{ return workflowSubscribe(s=>setWfState({...s})); },[]);
-
-  // Build pick list from workflow store — real confirmed orders
-  const workflowPickList = getPickList();
-  // Fallback fabricated data shown in red when no orders confirmed yet
-  const fabricatedBase = [
-    {crop:"Pea Shoots (M)",         units:49,packWt:93, totalG:4557,fab:true},
-    {crop:"Sunflower Shoots (M)",   units:26,packWt:101,totalG:2626,fab:true},
-    {crop:"Sunflower Shoots (RETAIL) (M)",units:43,packWt:101,totalG:4343,fab:true},
-    {crop:"Radish Blend (M)",       units:12,packWt:98, totalG:1176,fab:true},
-    {crop:"Mellow Mix (L)",         units:8, packWt:208,totalG:1664,fab:true},
-    {crop:"Kale (S)",               units:7, packWt:42, totalG:294, fab:true},
-  ];
-  // Merge: workflow orders take priority, fab fills the rest
-  const confirmedCrops = new Set(workflowPickList.map(p=>p.product));
-  const pickList = [
-    ...workflowPickList.map(p=>({crop:p.product,units:p.totalQty,packWt:p.wt,totalG:p.totalQty*p.wt,fab:false})),
-    ...fabricatedBase.filter(f=>!confirmedCrops.has(f.crop)),
-  ];
-  const done = Object.values(checked).filter(Boolean).length;
-  const totalKg = (pickList.reduce((s,r)=>s+r.totalG,0)/1000).toFixed(1);
-  const isMobile = useMobile();
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isMobile?12:20}}>
-        <div>
-          <h1 style={{fontSize:isMobile?18:22,fontWeight:800,color:T.textMain,margin:0}}>Pick List — Wed 28 May</h1>
-          <p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>Pack by 6:30 AM · {done}/{pickList.length} confirmed · {totalKg}kg</p>
-        </div>
-        <div style={{width:52,height:52,borderRadius:26,background:done===pickList.length?T.green:T.sky,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",flexShrink:0}}>
-          <span style={{fontSize:16,fontWeight:900,color:"#fff",lineHeight:1}}>{done}</span>
-          <span style={{fontSize:9,color:"rgba(255,255,255,0.7)",lineHeight:1}}>/{pickList.length}</span>
-        </div>
-      </div>
-      {isMobile ? (
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {pickList.map((r,i)=>(
-            <div key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
-              style={{background:checked[i]?"#f0f9ec":T.surface,borderRadius:12,border:`2px solid ${checked[i]?T.green:T.border}`,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,cursor:"pointer",transition:"all 0.15s",opacity:checked[i]?0.7:1}}>
-              <div style={{width:40,height:40,borderRadius:8,flexShrink:0,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                {checked[i]&&<span style={{fontSize:22,color:"#fff",fontWeight:900,lineHeight:1}}>✓</span>}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <p style={{fontSize:15,fontWeight:700,color:checked[i]?T.textSub:T.textMain,margin:0,textDecoration:checked[i]?"line-through":"none"}}>
-                  {r.crop}{r.fab&&<span style={{marginLeft:6,fontSize:10,color:"#b91c1c",fontStyle:"italic"}}>(demo)</span>}
-                </p>
-                <p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>{r.packWt}g · {(r.totalG/1000).toFixed(2)}kg total</p>
-              </div>
-              <div style={{textAlign:"right",flexShrink:0}}>
-                <p style={{fontSize:28,fontWeight:900,color:r.fab?T.rust:T.textMain,margin:0,lineHeight:1}}>{r.units}</p>
-                <p style={{fontSize:10,color:T.textSub,margin:"2px 0 0"}}>packs</p>
-              </div>
-            </div>
-          ))}
-          <div style={{padding:"12px 14px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a",fontSize:13,color:"#92400e",marginTop:4}}>
-            ⚠ Sunflower Shoots short 0.7kg — check tray A-2
-          </div>
-        </div>
-      ) : (
-        <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
-              {["","Crop / Pack","Units","Pack wt (g)","Total (g)","kg"].map(h=>(
-                <th key={h} style={{textAlign:"left",padding:"10px 16px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>{pickList.map((r,i)=>(
-              <tr key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
-                style={{borderBottom:`1px solid ${T.border}`,background:checked[i]?"#f0f9ec":i%2===0?"#fff":"#fafbfc",cursor:"pointer",transition:"background 0.12s"}}>
-                <td style={{padding:"11px 16px"}}>
-                  <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:900}}>{checked[i]?"✓":""}</div>
-                </td>
-                <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>
-                  {r.crop}{r.fab&&<span style={{marginLeft:6,fontSize:9,color:"#9ca3af",fontStyle:"italic"}}>(demo)</span>}
-                </td>
-                <td style={{padding:"11px 16px",fontWeight:800,color:r.fab?T.rust:T.textMain}}>{r.units}</td>
-                <td style={{padding:"11px 16px",color:T.textSub}}>{r.packWt}</td>
-                <td style={{padding:"11px 16px",color:T.textSub}}>{r.totalG.toLocaleString()}</td>
-                <td style={{padding:"11px 16px",fontWeight:700,color:T.sky}}>{(r.totalG/1000).toFixed(2)}</td>
-              </tr>
-            ))}</tbody>
-            <tfoot><tr style={{background:T.textMain}}>
-              <td colSpan={2} style={{padding:"10px 16px",fontWeight:800,color:"#fff"}}>Total</td>
-              <td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.units,0)}</td>
-              <td/><td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.totalG,0).toLocaleString()}</td>
-              <td style={{padding:"10px 16px",fontWeight:900,color:T.green}}>{totalKg}</td>
-            </tr></tfoot>
-          </table>
-          <div style={{padding:"10px 16px",background:"#fffbeb",borderTop:`1px solid #fde68a`,fontSize:12,color:"#92400e"}}>
-            ⚠ Sunflower Shoots short 0.7kg vs orders — check tray A-2
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ── Calendar View ──────────────────────────────────────────────────────────────
-function CalendarView() {
-  const days = ["Mon","Tue","Wed","Thu","Fri"];
-  const week = [
-    {day:"Mon 26",tasks:[{time:"7:00",label:"Review standing orders",type:"admin"},{time:"9:00",label:"Plant Pea Shoots — 6 trays (A-1)",type:"grow"},{time:"14:00",label:"Confirm Wed orders",type:"admin"}]},
-    {day:"Tue 27",tasks:[{time:"6:30",label:"Harvest prep — check trays",type:"grow"},{time:"7:00",label:"Harvest Wednesday orders",type:"harvest"},{time:"13:00",label:"Pack & label",type:"harvest"}]},
-    {day:"Wed 28",tasks:[{time:"7:00",label:"North Shore run — Sam (🚗)",type:"delivery"},{time:"9:00",label:"Downtown run — Leo (🚲)",type:"delivery"},{time:"11:30",label:"Richmond run — Sam (🚗)",type:"delivery"}]},
-    {day:"Thu 29",tasks:[{time:"9:00",label:"Plant Sunflower — 4 trays (B-2)",type:"grow"},{time:"14:00",label:"Confirm Friday orders",type:"admin"}]},
-    {day:"Fri 30",tasks:[{time:"7:00",label:"Harvest Friday orders",type:"harvest"},{time:"9:00",label:"North Shore + Downtown runs",type:"delivery"}]},
-  ];
-  const typeColors = {admin:{bg:"#e8f0fb",text:"#1a3a7a"},grow:{bg:"#e8f6dc",text:"#2a6010"},harvest:{bg:"#fef3dc",text:"#7a5000"},delivery:{bg:"#fde8e8",text:"#7a1a1a"}};
-  return (
-    <div>
-      <PageHeader title="Weekly Calendar" sub="Week of 26 May 2026 · All activities auto-generated from orders"/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
-        {week.map(day=>(
-          <div key={day.day} style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-            <div style={{padding:"10px 14px",background:T.textMain}}>
-              <p style={{fontSize:12,fontWeight:800,color:"#fff",margin:0}}>{day.day}</p>
-            </div>
-            <div style={{padding:10,display:"flex",flexDirection:"column",gap:8}}>
-              {day.tasks.map((t,i)=>(
-                <div key={i} style={{padding:"7px 10px",borderRadius:7,...typeColors[t.type]}}>
-                  <p style={{fontSize:10,fontWeight:700,margin:"0 0 2px",opacity:0.7}}>{t.time}</p>
-                  <p style={{fontSize:11,fontWeight:600,margin:0,lineHeight:1.3}}>{t.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}}>
-        {Object.entries({admin:"Admin",grow:"Growing",harvest:"Harvest",delivery:"Delivery"}).map(([k,l])=>(
-          <div key={k} style={{display:"flex",alignItems:"center",gap:6}}>
-            <div style={{width:10,height:10,borderRadius:2,...typeColors[k]}}/>
-            <span style={{fontSize:11,color:T.textSub}}>{l}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
+// ── VIEWS object ──────────────────────────────────────────────────────────────
 const VIEWS = {
   dashboard:   <DashboardView/>,
   plantings:   <PlantingsView/>,
@@ -1421,13 +1053,11 @@ const VIEWS = {
   customers:   <CustomersView/>,
   atrisk:      <AtRiskView/>,
   calendar:    <CalendarView/>,
-  provenance: <ProvenanceTrail/>,
+  provenance:  <ProvenanceTrail/>,
   legacy: null,
 };
 
-const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-// ── Mobile bottom nav items (5 key destinations) ────────────────────────────
+// ── Mobile bottom nav ─────────────────────────────────────────────────────────
 const MOBILE_NAV = [
   {id:"dashboard",  icon:"🏠", label:"Home"},
   {id:"orderinbox", icon:"📬", label:"Orders"},
@@ -1435,6 +1065,49 @@ const MOBILE_NAV = [
   {id:"picklist",   icon:"✅", label:"Pick List"},
   {id:"_more",      icon:"☰",  label:"More"},
 ];
+
+function HarvestManagerEmbed() {
+  return (
+    <div style={{height:"calc(100vh - 88px)",overflow:"hidden",margin:"-24px"}}>
+      <HarvestManager/>
+    </div>
+  );
+}
+
+function LegacySiteView({ navigate }) {
+  return (
+    <div style={{maxWidth:600}}>
+      <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+        <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+          <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Interim Stopgap Features</p>
+          <h3 style={{fontSize:16,fontWeight:900,color:T.textMain,margin:0}}>Legacy Site</h3>
+        </div>
+        <div style={{padding:20}}>
+          <p style={{fontSize:13,color:T.textSub,margin:"0 0 16px",lineHeight:1.6}}>
+            Standalone tools built as stopgaps while the full system is developed. Click any feature to open it.
+          </p>
+          <button onClick={()=>navigate("harvests")}
+            style={{display:"flex",gap:16,alignItems:"flex-start",textAlign:"left",padding:20,background:"#fff",border:`2px solid ${T.sky}`,borderRadius:12,cursor:"pointer",width:"100%",transition:"all 0.15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
+            onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+            <span style={{fontSize:32,flexShrink:0}}>📊</span>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <p style={{fontSize:15,fontWeight:800,color:T.textMain,margin:0}}>Harvest Report</p>
+                <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,background:"#e8f6dc",color:"#2a6010"}}>✓ Live</span>
+              </div>
+              <p style={{fontSize:13,color:T.textSub,margin:"0 0 10px",lineHeight:1.5}}>
+                Upload Wednesday and Friday harvest xlsx files. Crop weight report by product or base crop. Export to Excel or print as PDF.
+              </p>
+              <p style={{fontSize:12,fontWeight:700,color:T.sky,margin:0}}>Click to open →</p>
+            </div>
+          </button>
+          <p style={{fontSize:11,color:T.textSub,margin:"14px 0 0",textAlign:"center",fontStyle:"italic"}}>More tools will appear here as they are built</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SkyHarvestMIS() {
   const [active, setActive] = useState("dashboard");
@@ -1449,13 +1122,14 @@ export default function SkyHarvestMIS() {
 
   return (
     <div style={{display:"flex",height:"100vh",overflow:"hidden",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+
       {/* Sidebar — desktop only */}
       {!isMobile && <div style={{width:234,background:T.sidebar,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
         <div style={{padding:"16px 16px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${T.green},${T.sky})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",flexShrink:0}}>SH</div>
             <div>
-              <p style={{color:"#fff",fontWeight:800,fontSize:14,margin:0,letterSpacing:"-0.01em"}}>Sky Harvest</p>
+              <p style={{color:"#fff",fontWeight:800,fontSize:14,margin:0}}>Sky Harvest</p>
               <p style={{color:T.textDim,fontSize:10,margin:0}}>Vancouver Island</p>
             </div>
           </div>
@@ -1467,7 +1141,7 @@ export default function SkyHarvestMIS() {
               {section.items.map(item=>{
                 const isActive=active===item.id;
                 return(
-                  <button key={item.id} onClick={()=>setActive(item.id)}
+                  <button key={item.id} onClick={()=>handleNav(item.id)}
                     style={{width:"calc(100% - 16px)",display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:isActive?T.activeBg:"transparent",border:"none",cursor:"pointer",textAlign:"left",borderRadius:7,margin:"1px 8px",transition:"background 0.12s"}}>
                     <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>{item.icon}</span>
                     <span style={{fontSize:13,fontWeight:isActive?700:500,color:isActive?"#fff":T.text,flex:1}}>{item.label}</span>
@@ -1481,7 +1155,7 @@ export default function SkyHarvestMIS() {
         <div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:30,height:30,borderRadius:15,background:`linear-gradient(135deg,${T.sky},${T.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#fff",flexShrink:0}}>CA</div>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{color:"#fff",fontSize:11,fontWeight:600,margin:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>chris@skyharvest.ca</p>
+            <p style={{color:"#fff",fontSize:11,fontWeight:600,margin:0}}>chris@skyharvest.ca</p>
             <p style={{color:T.textDim,fontSize:10,margin:0}}>Owner</p>
           </div>
           <span style={{color:T.textDim,fontSize:14,cursor:"pointer"}}>↪</span>
@@ -1500,8 +1174,7 @@ export default function SkyHarvestMIS() {
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,padding:"0 8px"}}>
                   {section.items.map(item=>(
                     <button key={item.id} onClick={()=>handleNav(item.id)}
-                      style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",background:active===item.id?T.activeBg:"transparent",
-                        border:"none",cursor:"pointer",borderRadius:8,textAlign:"left",width:"100%"}}>
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",background:active===item.id?T.activeBg:"transparent",border:"none",cursor:"pointer",borderRadius:8,textAlign:"left",width:"100%"}}>
                       <span style={{fontSize:16}}>{item.icon}</span>
                       <span style={{fontSize:12,fontWeight:active===item.id?700:500,color:active===item.id?"#fff":T.text}}>{item.label}</span>
                     </button>
@@ -1533,23 +1206,17 @@ export default function SkyHarvestMIS() {
         </div>
       </div>
 
-      {/* Mobile bottom nav bar */}
+      {/* Mobile bottom nav */}
       {isMobile && (
-        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,background:T.sidebar,
-          borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",height:64,
-          paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,background:T.sidebar,borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",height:64,paddingBottom:"env(safe-area-inset-bottom)"}}>
           {MOBILE_NAV.map(item=>{
-            const isActive = item.id !== "_more" && active === item.id;
-            const isMoreActive = item.id === "_more" && mobileMenuOpen;
-            return (
+            const isActive=item.id!=="__more"&&active===item.id;
+            const isMore=item.id==="_more"&&mobileMenuOpen;
+            return(
               <button key={item.id} onClick={()=>handleNav(item.id)}
-                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                  gap:3,background:"transparent",border:"none",cursor:"pointer",
-                  borderTop:isActive||isMoreActive?`2px solid ${T.green}`:"2px solid transparent",
-                  paddingTop:isActive||isMoreActive?0:2}}>
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,background:"transparent",border:"none",cursor:"pointer",borderTop:isActive||isMore?`2px solid ${T.green}`:"2px solid transparent",paddingTop:isActive||isMore?0:2}}>
                 <span style={{fontSize:20}}>{item.icon}</span>
-                <span style={{fontSize:10,fontWeight:isActive||isMoreActive?700:400,
-                  color:isActive||isMoreActive?"#fff":T.textDim}}>{item.label}</span>
+                <span style={{fontSize:10,fontWeight:isActive||isMore?700:400,color:isActive||isMore?"#fff":T.textDim}}>{item.label}</span>
               </button>
             );
           })}
