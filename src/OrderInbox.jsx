@@ -311,12 +311,20 @@ export default function OrderInbox() {
         )}
       </div>
 
-      {/* Right panel — message detail */}
+      {/* Right panel — message detail (full screen overlay on mobile) */}
       {selectedMsg && (
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{
+          flex:1,display:"flex",flexDirection:"column",overflow:"hidden",
+          ...(typeof window !== 'undefined' && window.innerWidth < 768 ? {
+            position:"fixed",inset:0,zIndex:50,background:T.bg,
+          } : {})
+        }}>
           <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
+                {typeof window !== 'undefined' && window.innerWidth < 768 && (
+                  <button onClick={()=>setSelectedMsg(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.sky,fontSize:13,fontWeight:700,padding:"0 8px 0 0",flexShrink:0}}>← Back</button>
+                )}
                 <span style={{fontSize:16}}>{CHANNEL_ICONS[selectedMsg.channel]}</span>
                 <h3 style={{fontSize:15,fontWeight:900,color:T.textMain,margin:0}}>{selectedMsg.customer}</h3>
                 {isConfirmed(selectedMsg.id) && (
@@ -339,7 +347,7 @@ export default function OrderInbox() {
             )}
           </div>
 
-          <div style={{flex:1,overflow:"auto",display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
+          <div style={{flex:1,overflow:"auto",display:"grid",gridTemplateColumns:typeof window !== 'undefined' && window.innerWidth < 768?"1fr":"1fr 1fr",gap:0}}>
             {/* Original message */}
             <div style={{padding:20,borderRight:`1px solid ${T.border}`}}>
               <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 12px"}}>
