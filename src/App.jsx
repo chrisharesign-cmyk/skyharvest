@@ -1037,6 +1037,369 @@ function TrayHealthView(){
 }
 
 
+// ── Grow Room View ─────────────────────────────────────────────────────────────
+function GrowRoomView() {
+  const [trays, setTrays] = useState(getTrayStore());
+  const [scanInput, setScanInput] = useState("");
+  const [scannedTray, setScannedTray] = useState(null);
+  const [note, setNote] = useState("");
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const isMobile = useMobile();
+  useEffect(()=>{ return subscribeTrayStore(t=>setTrays([...t])); },[]);
+  const handleScan = (e) => {
+    if(e)e.preventDefault();
+    const found=trays.find(t=>t.id.toLowerCase()===scanInput.toLowerCase().trim());
+    if(found){setScannedTray(found);setScanInput("");}
+    else{const f=trays.find(t=>t.id.toUpperCase().includes(scanInput.toUpperCase().slice(0,3)))||trays[0];setScannedTray(f);setScanInput("");}
+  };
+  const handleAddNote=()=>{
+    if(!note.trim()||!scannedTray)return;
+    const n={by:"Maria Chen",at:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"}),text:note};
+    addTrayNote(scannedTray.id,n);setNote("");setShowNoteInput(false);
+    setScannedTray(t=>({...t,notes:[...t.notes,n]}));
+  };
+  const sc=(s)=>s==="On track"?{bg:"#e8f6dc",c:"#2a6010"}:s==="Watch"?{bg:"#fef3dc",c:"#7a5000"}:{bg:"#fde8e8",c:"#7a1a1a"};
+
+  if(isMobile){
+    if(scannedTray) return(
+      <div style={{margin:"-16px",minHeight:"calc(100vh - 108px)",background:T.bg}}>
+        <div style={{background:`linear-gradient(135deg,${T.textMain},${T.sky})`,padding:"14px 16px 12px",display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setScannedTray(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>← Back</button>
+          <div style={{flex:1}}>
+            <p style={{fontSize:10,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record</p>
+            <h3 style={{fontSize:16,fontWeight:900,color:"#fff",margin:"1px 0 0"}}>{scannedTray.crop}</h3>
+          </div>
+          <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:10,...sc(scannedTray.status)}}>{scannedTray.status}</span>
+        </div>
+        <div style={{background:T.surface,margin:"12px 12px 0",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>Barcode</span>
+          <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:T.sky}}>{scannedTray.id}</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"10px 12px 0"}}>
+          {[["Planted",scannedTray.planted,false],["Est. Harvest",scannedTray.harvest,false],["Days Left",`${scannedTray.daysLeft}d`,false],["Shelf",scannedTray.shelf,false],["Seed Lot",scannedTray.lot,scannedTray.fab],["Planted By",scannedTray.who,scannedTray.fab]].map(([label,val,isFab])=>(
+            <div key={label} style={{background:T.surface,borderRadius:8,padding:"10px 12px"}}>
+              <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em",margin:"0 0 3px"}}>{label}</p>
+              <p style={{fontSize:13,fontWeight:700,color:isFab?T.rust:T.textMain,margin:0,fontStyle:isFab?"italic":"normal"}}>{val}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"10px 12px 0"}}>
+          <button style={{padding:"14px",background:T.green,color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>🤖 Health AI</button>
+          <button onClick={()=>setShowNoteInput(p=>!p)} style={{padding:"14px",background:T.surface,color:T.sky,border:`1px solid ${T.sky}`,borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>📝 Add Note</button>
+        </div>
+        {showNoteInput&&(
+          <div style={{padding:"10px 12px"}}>
+            <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. ⚠ Soft stems on left — possible overwater" rows={3} style={{width:"100%",padding:"10px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:14,resize:"none",boxSizing:"border-box"}}/>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button onClick={handleAddNote} style={{flex:1,padding:"12px",background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer"}}>Save Note</button>
+              <button onClick={()=>{setShowNoteInput(false);setNote("");}} style={{padding:"12px 16px",background:"#fff",color:T.textSub,border:`1px solid ${T.border}`,borderRadius:8,fontSize:14,cursor:"pointer"}}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {scannedTray.notes.length>0&&(
+          <div style={{margin:"10px 12px 0",background:T.surface,borderRadius:10,overflow:"hidden"}}>
+            <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",padding:"10px 14px 6px",margin:0}}>Notes ({scannedTray.notes.length})</p>
+            {scannedTray.notes.map((n,i)=>(
+              <div key={i} style={{padding:"10px 14px",borderTop:`1px solid ${T.border}`,background:n.text.includes("⚠")?"#fff5f5":"#fff"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:11,fontWeight:700,color:T.textMain}}>{n.by}</span><span style={{fontSize:10,color:T.textSub}}>{n.at}</span></div>
+                <p style={{fontSize:13,color:T.textMain,margin:0,lineHeight:1.5}}>{n.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{height:20}}/>
+      </div>
+    );
+    return(
+      <div style={{margin:"-16px"}}>
+        <div style={{background:T.textMain,padding:"16px 14px 12px"}}>
+          <p style={{fontSize:11,fontWeight:700,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:"0 0 10px"}}>Grow Room Scanner</p>
+          <div style={{background:"#122030",borderRadius:12,padding:20,marginBottom:12,textAlign:"center",minHeight:100,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:6}}>
+            <span style={{fontSize:40}}>📷</span>
+            <p style={{fontSize:13,color:"#86b955",fontWeight:700,margin:0}}>Camera ready — scan tray barcode</p>
+          </div>
+          <form onSubmit={handleScan} style={{display:"flex",gap:8}}>
+            <input value={scanInput} onChange={e=>setScanInput(e.target.value)} placeholder="Or type barcode…" autoCapitalize="none" style={{flex:1,padding:"12px 14px",border:"none",borderRadius:10,fontSize:15,outline:"none",background:"rgba(255,255,255,0.1)",color:"#fff"}}/>
+            <button type="submit" style={{padding:"12px 18px",background:T.green,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:700,cursor:"pointer"}}>Go</button>
+          </form>
+        </div>
+        <div style={{padding:"10px 12px",display:"flex",flexDirection:"column",gap:8}}>
+          <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"4px 0 4px"}}>All Trays ({trays.length})</p>
+          {trays.map((t)=>(
+            <div key={t.id} onClick={()=>setScannedTray(t)} style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+              <div style={{flex:1}}>
+                <p style={{fontSize:15,fontWeight:700,color:t.fab?T.rust:T.textMain,margin:0,fontStyle:t.fab?"italic":"normal"}}>{t.crop}</p>
+                <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0",fontFamily:"monospace"}}>{t.id} · Shelf {t.shelf}</p>
+              </div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                {t.notes.some(n=>n.text.includes("⚠"))&&<span style={{fontSize:16}}>⚠️</span>}
+                <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:8,...sc(t.status)}}>{t.daysLeft}d</span>
+                <span style={{color:T.textSub,fontSize:16}}>›</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <PageHeader title="Grow Room" sub="Scan a tray barcode to see its full record, history and health"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:16}}>
+            <div style={{padding:"12px 18px",borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>
+              <p style={{fontSize:11,fontWeight:700,color:T.sky,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Barcode Scanner</p>
+            </div>
+            <div style={{padding:16}}>
+              <div style={{background:"#1a2e3b",borderRadius:10,padding:16,marginBottom:14,textAlign:"center",minHeight:80,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:6}}>
+                <span style={{fontSize:28}}>📷</span>
+                <p style={{fontSize:11,color:"#86b955",fontWeight:700,margin:0}}>Camera ready — scan tray barcode</p>
+              </div>
+              <form onSubmit={handleScan} style={{display:"flex",gap:8}}>
+                <input value={scanInput} onChange={e=>setScanInput(e.target.value)} placeholder="Type or scan barcode ID…" style={{flex:1,padding:"9px 12px",border:`1px solid ${T.border}`,borderRadius:8,fontSize:12,outline:"none"}}/>
+                <button type="submit" style={{padding:"9px 14px",background:T.sky,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Go</button>
+              </form>
+            </div>
+          </div>
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}><p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>All Trays ({trays.length})</p></div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>{["Crop","Shelf","Days","Status","Notes"].map(h=><th key={h} style={{textAlign:"left",padding:"7px 12px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>)}</tr></thead>
+              <tbody>{trays.map((t,i)=>(
+                <tr key={t.id} onClick={()=>setScannedTray(t)} style={{borderBottom:`1px solid ${T.border}`,background:scannedTray?.id===t.id?"#f0f7ff":i%2===0?"#fff":"#fafbfc",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"} onMouseLeave={e=>e.currentTarget.style.background=scannedTray?.id===t.id?"#f0f7ff":i%2===0?"#fff":"#fafbfc"}>
+                  <td style={{padding:"8px 12px",fontWeight:600,color:t.fab?T.rust:T.textMain,fontStyle:t.fab?"italic":"normal"}}>{t.crop}</td>
+                  <td style={{padding:"8px 12px",fontFamily:"monospace",fontSize:11,color:T.textSub}}>{t.shelf}</td>
+                  <td style={{padding:"8px 12px"}}><span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:8,background:t.daysLeft<=3?"#e8f6dc":t.daysLeft<=6?"#fef3dc":"#f0f0f0",color:t.daysLeft<=3?T.green:t.daysLeft<=6?T.amber:"#666"}}>{t.daysLeft}d</span></td>
+                  <td style={{padding:"8px 12px"}}><span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,...sc(t.status)}}>{t.status}</span></td>
+                  <td style={{padding:"8px 12px",color:T.textSub,fontSize:11}}>{t.notes.length>0?<span style={{color:t.notes.some(n=>n.text.includes("⚠"))?T.rust:T.textSub,fontWeight:t.notes.some(n=>n.text.includes("⚠"))?700:400}}>{t.notes.length} note{t.notes.length>1?"s":""}</span>:"—"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          {scannedTray?(
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{background:T.surface,borderRadius:12,border:`2px solid ${T.sky}`,overflow:"hidden"}}>
+                <div style={{padding:"14px 20px",background:`linear-gradient(135deg,${T.textMain},${T.sky})`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div><p style={{fontSize:10,color:"#86b9d0",textTransform:"uppercase",letterSpacing:"0.08em",margin:0}}>Tray Record</p><h3 style={{fontSize:16,fontWeight:900,color:"#fff",margin:"2px 0 0"}}>{scannedTray.crop}</h3><p style={{fontSize:10,fontFamily:"monospace",color:"#86b9d0",margin:"2px 0 0"}}>{scannedTray.id}</p></div>
+                  <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:10,...sc(scannedTray.status)}}>{scannedTray.status}</span>
+                </div>
+                <div style={{padding:16}}>
+                  {[["Planted",scannedTray.planted,false],["Est. Harvest",scannedTray.harvest,false],["Days Left",`${scannedTray.daysLeft} days`,false],["Seed Lot",scannedTray.lot,scannedTray.fab],["Soil Mix",scannedTray.soil,scannedTray.fab],["Planted By",scannedTray.who,scannedTray.fab],["Shelf",scannedTray.shelf,false],["Cert",scannedTray.certUploaded?"✓ Yes":"Not yet",false]].map(([l,v,f])=>(
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${T.border}`}}><span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.04em"}}>{l}</span><span style={{fontSize:12,fontWeight:600,color:f?T.rust:T.textMain,fontStyle:f?"italic":"normal"}}>{v}</span></div>
+                  ))}
+                  <div style={{marginTop:12,display:"flex",gap:8}}>
+                    <button style={{flex:1,padding:"8px",background:T.green,color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>🤖 Analyse Health</button>
+                    <button onClick={()=>setShowNoteInput(p=>!p)} style={{flex:1,padding:"8px",background:"#fff",color:T.sky,border:`1px solid ${T.sky}`,borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>📝 Add Note</button>
+                  </div>
+                  {showNoteInput&&(
+                    <div style={{marginTop:10}}>
+                      <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. ⚠ Soft stems on left side" rows={3} style={{width:"100%",padding:"8px 10px",border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,resize:"none",boxSizing:"border-box"}}/>
+                      <div style={{display:"flex",gap:6,marginTop:6}}>
+                        <button onClick={handleAddNote} style={{flex:1,padding:"7px",background:T.sky,color:"#fff",border:"none",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>Save Note</button>
+                        <button onClick={()=>{setShowNoteInput(false);setNote("");}} style={{padding:"7px 12px",background:"#fff",color:T.textSub,border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,cursor:"pointer"}}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {scannedTray.notes.length>0&&(
+                <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                  <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}><p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Notes ({scannedTray.notes.length})</p></div>
+                  <div style={{padding:12,display:"flex",flexDirection:"column",gap:8}}>
+                    {scannedTray.notes.map((n,i)=>(
+                      <div key={i} style={{padding:10,background:n.text.includes("⚠")?"#fff5f5":"#f8fafb",borderRadius:8,border:`1px solid ${n.text.includes("⚠")?"#fca5a5":T.border}`}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,fontWeight:700,color:T.textMain}}>{n.by}</span><span style={{fontSize:10,color:T.textSub}}>{n.at}</span></div>
+                        <p style={{fontSize:12,color:T.textMain,margin:0,lineHeight:1.5}}>{n.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {scannedTray.healthHistory?.length>0&&(
+                <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                  <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`}}><p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:0}}>Health History</p></div>
+                  {scannedTray.healthHistory.map((h,i)=>(
+                    <div key={i} style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:40,height:40,borderRadius:20,background:h.score>=80?"#e8f6dc":h.score>=60?"#fef3dc":"#fde8e8",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:14,fontWeight:900,color:h.score>=80?T.green:h.score>=60?T.amber:T.rust}}>{h.score}</span></div>
+                      <div><p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:0}}>{h.stage}</p><p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>{h.date} · {h.by}</p></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ):(
+            <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,padding:40,textAlign:"center",color:T.textSub}}>
+              <p style={{fontSize:36,margin:"0 0 12px"}}>📦</p>
+              <p style={{fontSize:14,fontWeight:700,color:T.textMain,margin:"0 0 6px"}}>Select or scan a tray</p>
+              <p style={{fontSize:12,margin:0,lineHeight:1.6}}>Click any tray in the list or type its barcode above.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Customers & At Risk Views ──────────────────────────────────────────────────
+function CustomersView() {
+  const custList = [
+    ...topCustomers.map((c,i)=>({...c,id:`C${String(i+1).padStart(3,"0")}`,type:"Restaurant",day:"Wed+Fri",status:"Active",contact:`orders@${c.name.toLowerCase().replace(/[^a-z]/g,"")}.ca`})),
+    ...atRisk.map((r,i)=>({name:r.name,id:`C${String(i+20).padStart(3,"0")}`,monthly:parseInt(r.last?.replace(/[$,]/g,"")||0),trend:r.change,type:"Restaurant",day:"Wed",status:r.status,contact:`info@${r.name.toLowerCase().replace(/[^a-z]/g,"")}.ca`})),
+  ];
+  return(
+    <div>
+      <PageHeader title="All Customers" sub={`${custList.length} customers`} action="+ Add Customer"/>
+      <DataTable cols={[
+        {key:"id",label:"ID",render:v=><span style={{fontFamily:"monospace",fontSize:11,color:T.sky}}>{v}</span>},
+        {key:"name",label:"Customer"},
+        {key:"type",label:"Type"},
+        {key:"day",label:"Delivery Day"},
+        {key:"monthly",label:"Monthly CAD",render:v=><span style={{fontWeight:700}}>${(v||0).toLocaleString()}</span>},
+        {key:"trend",label:"Trend",render:v=><Trend v={v}/>},
+        {key:"status",label:"Status",render:v=><Pill label={v}/>},
+      ]} rows={custList}/>
+    </div>
+  );
+}
+
+function AtRiskView() {
+  return(
+    <div>
+      <PageHeader title="At Risk Customers" sub={`${atRisk.length} customers need attention`}/>
+      <DataTable cols={[
+        {key:"name",label:"Customer"},
+        {key:"change",label:"4-week Trend",render:v=><Trend v={v}/>},
+        {key:"weeks",label:"Weeks Declining",render:v=><span style={{fontWeight:700}}>{v}w</span>},
+        {key:"last",label:"Last Order"},
+        {key:"status",label:"Status",render:v=><Pill label={v}/>},
+      ]} rows={atRisk}/>
+    </div>
+  );
+}
+
+// ── Pick List View ─────────────────────────────────────────────────────────────
+function PickListView() {
+  const [checked, setChecked] = useState({});
+  const [wfState, setWfState] = useState(getWorkflowState());
+  useEffect(()=>{ return workflowSubscribe(s=>setWfState({...s})); },[]);
+  const isMobile = useMobile();
+  const workflowPickList = getPickList();
+  const fabricatedBase = [
+    {crop:"Pea Shoots (M)",wt:93,units:49,totalG:4557,fab:true},
+    {crop:"Sunflower Shoots (M)",wt:101,units:26,totalG:2626,fab:true},
+    {crop:"Radish Blend (M)",wt:98,units:12,totalG:1176,fab:true},
+    {crop:"Mellow Mix (L)",wt:208,units:8,totalG:1664,fab:true},
+    {crop:"Kale (S)",wt:42,units:7,totalG:294,fab:true},
+  ];
+  const confirmedCrops = new Set(workflowPickList.map(p=>p.product));
+  const pickList = [
+    ...workflowPickList.map(p=>({crop:p.product,units:p.totalQty,packWt:p.wt,totalG:p.totalQty*p.wt,fab:false})),
+    ...fabricatedBase.filter(f=>!confirmedCrops.has(f.crop)).map(f=>({crop:f.crop,units:f.units,packWt:f.wt,totalG:f.totalG,fab:true})),
+  ];
+  const done = Object.values(checked).filter(Boolean).length;
+  const totalKg = (pickList.reduce((s,r)=>s+r.totalG,0)/1000).toFixed(1);
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isMobile?12:20}}>
+        <div>
+          <h1 style={{fontSize:isMobile?18:22,fontWeight:800,color:T.textMain,margin:0}}>Pick List — Wed 28 May</h1>
+          <p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>Pack by 6:30 AM · {done}/{pickList.length} confirmed · {totalKg}kg</p>
+        </div>
+        <div style={{width:52,height:52,borderRadius:26,background:done===pickList.length?T.green:T.sky,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",flexShrink:0}}>
+          <span style={{fontSize:16,fontWeight:900,color:"#fff",lineHeight:1}}>{done}</span>
+          <span style={{fontSize:9,color:"rgba(255,255,255,0.7)",lineHeight:1}}>/{pickList.length}</span>
+        </div>
+      </div>
+      {isMobile?(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {pickList.map((r,i)=>(
+            <div key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))}
+              style={{background:checked[i]?"#f0f9ec":T.surface,borderRadius:12,border:`2px solid ${checked[i]?T.green:T.border}`,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,cursor:"pointer",opacity:checked[i]?0.7:1}}>
+              <div style={{width:40,height:40,borderRadius:8,flexShrink:0,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                {checked[i]&&<span style={{fontSize:22,color:"#fff",fontWeight:900,lineHeight:1}}>✓</span>}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:15,fontWeight:700,color:checked[i]?T.textSub:T.textMain,margin:0,textDecoration:checked[i]?"line-through":"none"}}>
+                  {r.crop}{r.fab&&<span style={{marginLeft:6,fontSize:10,color:"#b91c1c",fontStyle:"italic"}}>(demo)</span>}
+                </p>
+                <p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>{r.packWt}g · {(r.totalG/1000).toFixed(2)}kg total</p>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <p style={{fontSize:28,fontWeight:900,color:r.fab?T.rust:T.textMain,margin:0,lineHeight:1}}>{r.units}</p>
+                <p style={{fontSize:10,color:T.textSub,margin:"2px 0 0"}}>packs</p>
+              </div>
+            </div>
+          ))}
+          <div style={{padding:"12px 14px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a",fontSize:13,color:"#92400e",marginTop:4}}>
+            ⚠ Sunflower Shoots short 0.7kg — check tray A-2
+          </div>
+        </div>
+      ):(
+        <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{borderBottom:`1px solid ${T.border}`,background:"#f8fafb"}}>{["","Crop / Pack","Units","Pack wt (g)","Total (g)","kg"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 16px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>)}</tr></thead>
+            <tbody>{pickList.map((r,i)=>(
+              <tr key={r.crop} onClick={()=>setChecked(p=>({...p,[i]:!p[i]}))} style={{borderBottom:`1px solid ${T.border}`,background:checked[i]?"#f0f9ec":i%2===0?"#fff":"#fafbfc",cursor:"pointer"}}>
+                <td style={{padding:"11px 16px"}}><div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked[i]?T.green:"#c8d8e8"}`,background:checked[i]?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:900}}>{checked[i]?"✓":""}</div></td>
+                <td style={{padding:"11px 16px",fontWeight:600,color:checked[i]?T.textSub:T.textMain,textDecoration:checked[i]?"line-through":"none"}}>{r.crop}{r.fab&&<span style={{marginLeft:6,fontSize:9,color:"#9ca3af",fontStyle:"italic"}}>(demo)</span>}</td>
+                <td style={{padding:"11px 16px",fontWeight:800,color:r.fab?T.rust:T.textMain}}>{r.units}</td>
+                <td style={{padding:"11px 16px",color:T.textSub}}>{r.packWt}</td>
+                <td style={{padding:"11px 16px",color:T.textSub}}>{r.totalG.toLocaleString()}</td>
+                <td style={{padding:"11px 16px",fontWeight:700,color:T.sky}}>{(r.totalG/1000).toFixed(2)}</td>
+              </tr>
+            ))}</tbody>
+            <tfoot><tr style={{background:T.textMain}}>
+              <td colSpan={2} style={{padding:"10px 16px",fontWeight:800,color:"#fff"}}>Total</td>
+              <td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.units,0)}</td>
+              <td/><td style={{padding:"10px 16px",fontWeight:900,color:"#fff"}}>{pickList.reduce((s,r)=>s+r.totalG,0).toLocaleString()}</td>
+              <td style={{padding:"10px 16px",fontWeight:900,color:T.green}}>{totalKg}</td>
+            </tr></tfoot>
+          </table>
+          <div style={{padding:"10px 16px",background:"#fffbeb",borderTop:`1px solid #fde68a`,fontSize:12,color:"#92400e"}}>⚠ Sunflower Shoots short 0.7kg vs orders — check tray A-2</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Calendar View ──────────────────────────────────────────────────────────────
+function CalendarView() {
+  const week=[
+    {day:"Mon 26",tasks:[{time:"7:00",label:"Review standing orders",type:"admin"},{time:"9:00",label:"Plant Pea Shoots — 6 trays (A-1)",type:"grow"},{time:"14:00",label:"Confirm Wed orders",type:"admin"}]},
+    {day:"Tue 27",tasks:[{time:"6:30",label:"Harvest prep — check trays",type:"grow"},{time:"7:00",label:"Harvest Wednesday orders",type:"harvest"},{time:"13:00",label:"Pack & label",type:"harvest"}]},
+    {day:"Wed 28",tasks:[{time:"7:00",label:"North Shore run — Sam (🚗)",type:"delivery"},{time:"9:00",label:"Downtown run — Leo (🚲)",type:"delivery"},{time:"11:30",label:"Richmond run — Sam (🚗)",type:"delivery"}]},
+    {day:"Thu 29",tasks:[{time:"9:00",label:"Plant Sunflower — 4 trays (B-2)",type:"grow"},{time:"14:00",label:"Confirm Friday orders",type:"admin"}]},
+    {day:"Fri 30",tasks:[{time:"7:00",label:"Harvest Friday orders",type:"harvest"},{time:"9:00",label:"North Shore + Downtown runs",type:"delivery"}]},
+  ];
+  const tc={admin:{bg:"#e8f0fb",text:"#1a3a7a"},grow:{bg:"#e8f6dc",text:"#2a6010"},harvest:{bg:"#fef3dc",text:"#7a5000"},delivery:{bg:"#fde8e8",text:"#7a1a1a"}};
+  return(
+    <div>
+      <PageHeader title="Weekly Calendar" sub="Week of 26 May 2026 · Auto-generated from confirmed orders"/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,overflowX:"auto"}}>
+        {week.map(day=>(
+          <div key={day.day} style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,overflow:"hidden",minWidth:140}}>
+            <div style={{padding:"10px 14px",background:T.textMain}}><p style={{fontSize:12,fontWeight:800,color:"#fff",margin:0}}>{day.day}</p></div>
+            <div style={{padding:10,display:"flex",flexDirection:"column",gap:8}}>
+              {day.tasks.map((t,i)=>(
+                <div key={i} style={{padding:"7px 10px",borderRadius:7,...tc[t.type]}}>
+                  <p style={{fontSize:10,fontWeight:700,margin:"0 0 2px",opacity:0.7}}>{t.time}</p>
+                  <p style={{fontSize:11,fontWeight:600,margin:0,lineHeight:1.3}}>{t.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 // ── VIEWS object ──────────────────────────────────────────────────────────────
 const VIEWS = {
   dashboard:   <DashboardView/>,
