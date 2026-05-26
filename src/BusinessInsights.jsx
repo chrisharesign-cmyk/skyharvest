@@ -320,10 +320,9 @@ function ReportRenderer({ text }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function BusinessInsights({ sheets }) {
-  const [aiReport, setAiReport]     = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
-  const [activeView, setActiveView] = useState('overview');
+  const [aiReport, setAiReport] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
 
   const { periodLabel='' } = (() => { try { return useReportingSheets(); } catch(e) { return {}; } })();
 
@@ -374,22 +373,12 @@ export default function BusinessInsights({ sheets }) {
             {ins.weeklyProduction.some((_,i,a)=>i>0)?` · Wed+Fri combined`:''}
           </div>
         </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-          <div style={{display:'flex',border:`1px solid ${T.border}`,borderRadius:8,overflow:'hidden'}}>
-            {[['overview','📈 Overview'],['report','📝 AI Report']].map(([id,lbl])=>(
-              <button key={id} onClick={()=>setActiveView(id)}
-                style={{padding:'6px 14px',fontSize:11,fontWeight:700,border:'none',
-                  cursor:'pointer',background:activeView===id?T.sky:'#fff',
-                  color:activeView===id?'#fff':T.textMain}}>{lbl}</button>
-            ))}
-          </div>
-          <button onClick={generateReport} disabled={loading}
-            style={{padding:'7px 16px',fontSize:12,fontWeight:700,border:'none',
-              borderRadius:8,cursor:loading?'wait':'pointer',
-              background:loading?'#c8dce8':T.green,color:'#fff'}}>
-            {loading?'⏳ Generating…':'✨ Generate AI Insights'}
-          </button>
-        </div>
+        <button onClick={generateReport} disabled={loading}
+          style={{padding:'7px 16px',fontSize:12,fontWeight:700,border:'none',
+            borderRadius:8,cursor:loading?'wait':'pointer',
+            background:loading?'#c8dce8':T.green,color:'#fff'}}>
+          {loading?'⏳ Generating…':'✨ Generate AI Insights'}
+        </button>
       </div>
 
       {/* Cost note + period pill */}
@@ -408,9 +397,8 @@ export default function BusinessInsights({ sheets }) {
         )}
       </div>
 
-      {/* ── OVERVIEW ── */}
-      {activeView==='overview' && (
-        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      {/* Overview — always visible */}
+      <div style={{display:'flex',flexDirection:'column',gap:14}}>
 
           {/* Stat cards */}
           <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
@@ -506,11 +494,10 @@ export default function BusinessInsights({ sheets }) {
             </div>
           </div>
         </div>
-      )}
 
-      {/* ── AI REPORT ── */}
-      {activeView==='report' && (
-        <div>
+      {/* AI Report — appears below overview when generated */}
+      {(loading || error || aiReport) && (
+        <div style={{marginTop:14}}>
           {loading&&(
             <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
               padding:'40px 24px',textAlign:'center',color:T.textSub}}>
@@ -522,16 +509,7 @@ export default function BusinessInsights({ sheets }) {
           {error&&<div style={{background:'#fef2f2',border:`1px solid #fca5a5`,borderRadius:10,
             padding:'16px 20px',color:T.rust,fontSize:13}}>{error}</div>}
           {aiReport&&<ReportRenderer text={aiReport}/>}
-          {!loading&&!aiReport&&!error&&(
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
-              padding:'40px 24px',textAlign:'center',color:T.textSub}}>
-              <div style={{fontSize:28,marginBottom:10}}>✨</div>
-              <div style={{fontSize:13,fontWeight:600}}>Click "Generate AI Insights" to produce the narrative report</div>
-              <div style={{fontSize:11,marginTop:4}}>
-                {ins.totalWeeks} weeks · {ins.totalCustomers} accounts · Wed+Fri combined data
-              </div>
-            </div>
-          )}
+
         </div>
       )}
     </div>
