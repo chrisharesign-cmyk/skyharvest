@@ -1059,11 +1059,10 @@ function EmptyState(){
 export default function Reporting(){
   const [activeTab,setActiveTab]=useState("report");
   const [sheets,setSheets]=useState([]);
-  const { setSheets: setSharedSheets } = (() => {
+  const { setSheets: setSharedSheets, setPeriodLabel: setSharedPeriodLabel } = (() => {
     try { return useReportingSheets(); }
-    catch(e) { return { setSheets: ()=>{} }; }
+    catch(e) { return { setSheets: ()=>{}, setPeriodLabel: ()=>{} }; }
   })();
-  useEffect(() => { setSharedSheets(sheets); }, [sheets]);
   const [loading,setLoading]=useState(false);
   const [loadedFiles,setLoadedFiles]=useState([]);
   const [showDriveInfo,setShowDriveInfo]=useState(false);
@@ -1098,6 +1097,17 @@ export default function Reporting(){
     }
     return sheets;
   },[sheets,periodFilter,customRange]);
+  // Sync filtered sheets + period label to shared context
+  useEffect(() => {
+    setSharedSheets(filteredSheets);
+    if(!filteredSheets.length){ setSharedPeriodLabel("No data"); return; }
+    const sorted=[...filteredSheets].sort((a,b)=>a.date-b.date);
+    const from=sorted[0].date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+    const to=sorted[sorted.length-1].date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+    const labels={"all":"All data","4w":"Last 4 weeks","8w":"Last 8 weeks","12w":"Last 12 weeks","ytd":"Year to date","custom":"Custom range"};
+    setSharedPeriodLabel(`${labels[periodFilter]||"Custom"} · ${from} → ${to} (${filteredSheets.length} weeks)`);
+  }, [filteredSheets, periodFilter]);
+
 
   const handleFiles=useCallback(async(files)=>{
     setLoading(true);
