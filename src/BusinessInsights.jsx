@@ -618,7 +618,7 @@ export default function BusinessInsights({ sheets }) {
                   🟢 Growing
                 </div>
                 {ins.growingAccounts.length === 0
-                  ? <div style={{fontSize:12,color:T.textSub}}>No accounts with >15% growth.</div>
+                  ? <div style={{fontSize:12,color:T.textSub}}>No accounts with &gt;15% growth.</div>
                   : ins.growingAccounts.map(c => (
                     <div key={c.name} style={{display:"flex",justifyContent:"space-between",
                       alignItems:"baseline",padding:"4px 0",
