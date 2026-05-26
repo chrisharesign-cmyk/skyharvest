@@ -759,6 +759,7 @@ export default function Reporting(){
   const [sheets,setSheets]=useState([]);
   const [loading,setLoading]=useState(false);
   const [loadedFiles,setLoadedFiles]=useState([]);
+  const [showDriveInfo,setShowDriveInfo]=useState(false);
   const [periodFilter,setPeriodFilter]=useState("all"); // all | 4w | 8w | 12w | ytd
   const [customRange,setCustomRange]=useState({from:"",to:""});
 
@@ -818,11 +819,24 @@ export default function Reporting(){
 
   return(
     <div>
-      {/* Page header */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+      {/* Page header — title + tabs on same row */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:T.textMain,margin:0}}>Reporting</h1>
-          <p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>Upload harvest files for instant analysis across all three views</p>
+          <p style={{fontSize:13,color:T.textSub,margin:"3px 0 0"}}>Upload harvest files for instant analysis across all three views</p>
+        </div>
+        {/* Tabs — inline with title */}
+        <div style={{display:"flex",gap:0,background:T.surface,borderRadius:10,
+          border:`1px solid ${T.border}`,padding:4}}>
+          {TABS.map(tab=>(
+            <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+              style={{padding:"8px 18px",fontSize:13,fontWeight:700,border:"none",
+                borderRadius:8,cursor:"pointer",transition:"all 0.15s",
+                background:activeTab===tab.id?T.sky:"transparent",
+                color:activeTab===tab.id?"#fff":T.textSub}}>
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -849,32 +863,39 @@ export default function Reporting(){
             </>
           )}
           {loading&&<span style={{fontSize:13,color:T.sky,fontWeight:600}}>Reading files…</span>}
-          <button
-            onClick={async()=>{
-              setLoading(true);
-              try{
-                const res=await fetch("/.netlify/functions/load-drive-harvest");
-                if(!res.ok)throw new Error(await res.text());
-                const blobs=await res.json();
-                const incoming=[],names=[];
-                for(const{name,data}of blobs){
-                  const bytes=Uint8Array.from(atob(data),c=>c.charCodeAt(0));
-                  const parsed=parseXlsxFull(bytes);
-                  incoming.push(...parsed);
-                  names.push(`${name} (${parsed.length} sheets)`);
-                }
-                setLoadedFiles(prev=>[...prev,...names]);
-                setSheets(prev=>{
-                  const ex=new Set(prev.map(s=>s.sheetName));
-                  return[...prev,...incoming.filter(s=>!ex.has(s.sheetName))].sort((a,b)=>a.date-b.date);
-                });
-              }catch(e){alert("Drive load failed: "+e.message);}
-              setLoading(false);
-            }}
-            style={{padding:"8px 14px",background:"#fff",color:T.green,border:`1px solid ${T.green}`,
-              borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-            <span>📂</span> Load from Google Drive
-          </button>
+          <div style={{position:"relative",flexShrink:0}} title="Google Drive auto-load requires one-time OAuth setup in Netlify — contact Chris H to enable">
+            <button
+              onClick={()=>setShowDriveInfo(s=>!s)}
+              style={{padding:"8px 14px",background:"#fff",color:T.textSub,
+                border:`1px solid ${T.border}`,borderRadius:8,fontSize:12,
+                fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+              <span>📂</span> Load from Google Drive
+              <span style={{fontSize:10,background:"#fef3dc",color:"#92400e",
+                padding:"1px 5px",borderRadius:6,fontWeight:800}}>Setup needed</span>
+            </button>
+            {showDriveInfo&&(
+              <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:300,
+                background:"#fff",border:`1px solid ${T.border}`,borderRadius:10,
+                padding:14,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:50}}>
+                <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:"0 0 8px"}}>
+                  📂 Google Drive auto-load
+                </p>
+                <p style={{fontSize:11,color:T.textSub,margin:"0 0 10px",lineHeight:1.6}}>
+                  To load files automatically from Google Drive, the Netlify deployment needs a one-time OAuth credential setup. Until then, use the Choose files button above.
+                </p>
+                <p style={{fontSize:11,fontWeight:700,color:T.sky,margin:"0 0 6px"}}>How to enable it:</p>
+                <ol style={{fontSize:11,color:T.textSub,margin:0,paddingLeft:16,lineHeight:2}}>
+                  <li>Chris Arthur shares his harvest folder with chris.haresign@gmail.com (Viewer)</li>
+                  <li>Add Google OAuth token to Netlify environment variables</li>
+                  <li>Button becomes live — no upload needed</li>
+                </ol>
+                <button onClick={()=>setShowDriveInfo(false)}
+                  style={{marginTop:10,width:"100%",padding:"7px",background:T.sky,
+                    color:"#fff",border:"none",borderRadius:7,fontSize:12,
+                    fontWeight:700,cursor:"pointer"}}>Got it</button>
+              </div>
+            )}
+          </div>
         </div>
         {loadedFiles.length>0&&(
           <div style={{marginTop:8,display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -918,20 +939,6 @@ export default function Reporting(){
           </span>
         </div>
       )}
-
-      {/* Tabs */}
-      <div style={{display:"flex",gap:0,marginBottom:20,background:T.surface,borderRadius:10,
-        border:`1px solid ${T.border}`,padding:4,width:"fit-content"}}>
-        {TABS.map(tab=>(
-          <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
-            style={{padding:"9px 20px",fontSize:13,fontWeight:700,border:"none",
-              borderRadius:8,cursor:"pointer",transition:"all 0.15s",
-              background:activeTab===tab.id?T.sky:"transparent",
-              color:activeTab===tab.id?"#fff":T.textSub}}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
 
       {/* Tab content */}
       {activeTab==="report"    && <HarvestReportTab    sheets={filteredSheets}/>}
