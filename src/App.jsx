@@ -715,32 +715,25 @@ function LegacySiteView({ navigate }) {
             Standalone tools built as stopgaps while the full system is developed. Each one solves a
             specific pain point right now. Click any feature to open it.
           </p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            {[
-              {id:"harvests",  icon:"📊", title:"Harvest Report",  desc:"Upload Wednesday and Friday xlsx files. Get crop weight report by product or base crop. Export to Excel or print as PDF.", status:"live"},
-              {id:"orderinbox",icon:"📬", title:"Orders Inbox",    desc:"All incoming orders — email, voicemail, WhatsApp — parsed by Claude and queued for one-tap confirmation.", status:"mockup"},
-              {id:"trayhealth",icon:"🤖", title:"Tray Health AI",  desc:"Upload a tray photo. Claude Vision assesses growth stage, health score, and days to harvest.", status:"live"},
-              {id:"roadmap",   icon:"🚀", title:"Full System",     desc:"See the complete roadmap — what is built, what is next, and what the full platform looks like.", status:"live"},
-            ].map(f=>(
-              <button key={f.id} onClick={()=>navigate(f.id)}
-                style={{textAlign:"left",padding:16,background:T.surface,border:`1px solid ${f.status==="live"?T.sky:T.border}`,borderRadius:10,cursor:"pointer",transition:"all 0.15s"}}
-                onMouseEnter={e=>{e.currentTarget.style.background="#f0f7ff";e.currentTarget.style.borderColor=T.sky;}}
-                onMouseLeave={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=f.status==="live"?T.sky:T.border;}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                  <span style={{fontSize:24}}>{f.icon}</span>
-                  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,
-                    background:f.status==="live"?"#e8f6dc":"#f0f0f0",
-                    color:f.status==="live"?"#2a6010":"#666"}}>
-                    {f.status==="live"?"✓ Live":"Preview"}
-                  </span>
-                </div>
-                <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:"0 0 6px"}}>{f.title}</p>
-                <p style={{fontSize:12,color:T.textSub,margin:0,lineHeight:1.5}}>{f.desc}</p>
-              </button>
-            ))}
-          </div>
-          <p style={{fontSize:11,color:T.textSub,margin:"16px 0 0",textAlign:"center",fontStyle:"italic"}}>
-            More stopgap tools will appear here as they are built
+          <button onClick={()=>navigate("harvests")}
+            style={{display:"flex",gap:16,alignItems:"flex-start",textAlign:"left",padding:20,background:T.surface,border:`2px solid ${T.sky}`,borderRadius:12,cursor:"pointer",width:"100%",transition:"all 0.15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#f0f7ff"}
+            onMouseLeave={e=>e.currentTarget.style.background=T.surface}>
+            <span style={{fontSize:32,flexShrink:0}}>📊</span>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <p style={{fontSize:15,fontWeight:800,color:T.textMain,margin:0}}>Harvest Report</p>
+                <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,background:"#e8f6dc",color:"#2a6010"}}>✓ Live</span>
+              </div>
+              <p style={{fontSize:13,color:T.textSub,margin:"0 0 10px",lineHeight:1.5}}>
+                Upload Wednesday and Friday harvest xlsx files. Get crop weight report by product or by base crop.
+                Export to Excel or print as PDF for organic certification audits.
+              </p>
+              <p style={{fontSize:12,fontWeight:700,color:T.sky,margin:0}}>Click to open →</p>
+            </div>
+          </button>
+          <p style={{fontSize:11,color:T.textSub,margin:"14px 0 0",textAlign:"center",fontStyle:"italic"}}>
+            More tools will appear here as they are built
           </p>
         </div>
       </div>
