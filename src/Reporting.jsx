@@ -1167,7 +1167,7 @@ export default function Reporting(){
             <span style={{padding:"8px 16px",background:T.sky,color:"#fff",borderRadius:8,fontSize:13,fontWeight:700,flexShrink:0}}>
               Choose files
             </span>
-            <span style={{fontSize:13,color:T.textSub}}>Wednesday and Friday xlsx — any number</span>
+            <span style={{fontSize:13,color:T.textSub}}>Wednesday <strong>and</strong> Friday xlsx — upload both for complete data</span>
             <input type="file" multiple accept=".xlsx" style={{display:"none"}}
               onChange={e=>{if(e.target.files.length)handleFiles([...e.target.files]);e.target.value="";}}/>
           </label>
@@ -1226,6 +1226,36 @@ export default function Reporting(){
           </div>
         )}
       </div>
+
+      {/* Both-files reminder — shown until both Wed and Fri are present */}
+      {(()=>{
+        const hasWed = sheets.some(s=>!s.isFriday);
+        const hasFri = sheets.some(s=>s.isFriday);
+        const missing = !hasWed && !hasFri ? null
+          : !hasWed ? "Wednesday"
+          : !hasFri ? "Friday"
+          : null;
+        if (!missing && sheets.length > 0) return null;
+        return (
+          <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,
+            padding:"10px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:16}}>⚠️</span>
+            <div>
+              <span style={{fontSize:12,fontWeight:700,color:"#92400e"}}>
+                {missing ? `${missing} file not loaded — ` : "Upload both files — "}
+              </span>
+              <span style={{fontSize:12,color:"#92400e"}}>
+                {missing
+                  ? `all reports are showing ${missing==="Wednesday"?"Friday":"Wednesday"}-only data. Upload the ${missing} xlsx for the full picture.`
+                  : "upload both the Wednesday and Friday harvest xlsx files for complete weekly data. Loading only one file shows roughly half your actual production."}
+              </span>
+              {!missing && <span style={{fontSize:11,color:"#b45309",display:"block",marginTop:2}}>
+                Until Google Drive is connected, select both files together when you click Choose files.
+              </span>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Period filter */}
       {sheets.length>0&&(
