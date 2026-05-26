@@ -11,27 +11,91 @@ const SKIP = [/WEIGHT NEEDED/i,/NON-RADISH WEIGHT/i,/RADISH WEIGHT FOR BOOST/i,
   /^Approx\s/i,/^Total Sunflower/i,/^Total Pea/i,/^TOTAL\s/i,
   /^Gourmet Garnish/i,/^#REF/i,/^Check\s/i];
 
-const MIX_SPLITS = {
-  "Mellow Mix":   {Broccoli:0.45,"Purple Cabbage":0.45,Beets:0.10},
-  "Spicy Mix":    {Mustard:0.80,"Purple Cabbage":0.20},
-  "Radish Blend": {Radish:1.00},
-  "Salad Boost":  {Radish:0.70,Arugula:0.09,Broccoli:0.21},
+// ── Crop naming rules (from Sky Harvest spec) ──────────────────────────────
+// These must be applied BEFORE any grouping or decomposition
+const RENAME_MAP = {
+  "Sky Hearts":       "Red Veined Sorrel",
+  "Baby Sky Hearts":  "Red Veined Sorrel",
+  "Purple Cabbage":   "Purple Kohlrabi",
 };
 
-function getMixFamily(n){for(const p of Object.keys(MIX_SPLITS))if(n.startsWith(p))return p;return null;}
+// Shiso sub-classification (by product name keyword)
+function classifyShiso(name) {
+  const n = name.toLowerCase();
+  if (n.includes("britton"))  return "Britton Shiso";
+  if (n.includes("purple"))   return "Purple Perilla";
+  if (n.includes("green"))    return "Green Perilla";
+  return "Shiso"; // fallback if no variant specified
+}
 
-function getProductFamily(name){
-  if(!name)return null;
-  let n=name.trim()
+// Basil sub-classification
+function classifyBasil(name) {
+  const n = name.toLowerCase();
+  if (n.includes("purple") || n.includes("dark opal")) return "Purple Basil";
+  if (n.includes("thai") || n.includes("anise"))       return "Thai Basil";
+  return "Green Basil"; // default
+}
+
+// True mixes — decompose into component crops
+const MIX_SPLITS = {
+  "Mellow Mix":   {"Broccoli":0.45,"Purple Kohlrabi":0.45,"Beets":0.10},
+  "Spicy Mix":    {"Mustard":0.80,"Purple Kohlrabi":0.20},
+  "Radish Blend": {"Radish":1.00},
+  "Salad Boost":  {"Radish":0.70,"Arugula":0.09,"Broccoli":0.21},
+  "Peppercress (70%) & Beet (30%) blend": {"Peppercress":0.70,"Beets":0.30},
+};
+
+// Fixed blends — report as-is, do NOT decompose
+const FIXED_BLENDS = new Set(["Brilliant Blend","Haute Blend","Violet Mosaic"]);
+
+
+function getMixFamily(n){
+  // Fixed blends are never decomposed
+  for(const fb of FIXED_BLENDS) if(n.startsWith(fb)) return null;
+  for(const p of Object.keys(MIX_SPLITS)) if(n.startsWith(p)) return p;
+  return null;
+}
+
+function getProductFamily(rawName){
+  if(!rawName)return null;
+  let n=rawName.trim()
     .replace(/\s*(SPUD Label|SPUD 100g bag|1 lb bag|RETAIL)\s*/gi," ")
-    .replace(/\s*\((XS|S|M|L|XL)\)\s*$/,"").trim();
-  if(/^Baby Basil/i.test(n)||/^Mini Micro Basil/i.test(n)||/^Thai Basil/i.test(n))return"Basil";
-  if(/^Basil, Purple/i.test(n))return"Purple Basil";
-  if(/^Basil/i.test(n))return"Basil";
-  if(/^Baby Sky Hearts/i.test(n))return"Sky Hearts";
-  if(/^Cilantro/i.test(n))return"Cilantro";
-  if(/^Sunflower Shoots/i.test(n))return"Sunflower Shoots";
-  if(/^Shiso/i.test(n))return"Shiso";
+    .replace(/\s*\((XS|S|M|L|XL)\)\s*$/,"")
+    .replace(/\s*-\s*LABEL:.*$/i,"")    // strip label suffixes
+    .replace(/\s*-\s*\d+\.\d+.*$/,"") // strip dimension suffixes
+    .trim();
+
+  // Fixed blends — keep as-is
+  for(const fb of FIXED_BLENDS){
+    if(n.startsWith(fb)) return fb;
+  }
+  // Apply rename map
+  for(const[from,to]of Object.entries(RENAME_MAP)){
+    if(n.toLowerCase().startsWith(from.toLowerCase())) return to;
+  }
+  // Shiso sub-types
+  if(/^Shiso/i.test(n)) return classifyShiso(n);
+  // Basil sub-types
+  if(/^Basil/i.test(n)||/^Baby Basil/i.test(n)||/^Mini Micro Basil/i.test(n)) return classifyBasil(n);
+  if(/^Thai Basil/i.test(n)) return "Thai Basil";
+  // Other groupings
+  if(/^Cilantro/i.test(n))        return "Cilantro";
+  if(/^Sunflower Shoots/i.test(n))return "Sunflower Shoots";
+  if(/^Pea Shoots/i.test(n))      return "Pea Shoots";
+  if(/^Snap Peas/i.test(n))       return "Pea Shoots";
+  if(/^Pea Tops/i.test(n))        return "Pea Shoots";
+  if(/^(Red |White |Ruby Stem )?Radish/i.test(n)) return "Radish";
+  if(/^Arugula/i.test(n))         return "Arugula";
+  if(/^Kale/i.test(n))            return "Kale";
+  if(/^Mustard/i.test(n))         return "Mustard";
+  if(/^Beets?/i.test(n))          return "Beets";
+  if(/^Broccoli/i.test(n))        return "Broccoli";
+  if(/^Peppercress/i.test(n))     return "Peppercress";
+  if(/^Nasturtium/i.test(n))      return "Nasturtium";
+  if(/^Mint/i.test(n))            return "Mint";
+  if(/^Lemon Balm/i.test(n))      return "Lemon Balm";
+  if(/^Amaranth/i.test(n))        return "Amaranth";
+  if(/^Purslane/i.test(n))        return "Purslane";
   return n;
 }
 
@@ -104,6 +168,23 @@ function parseXlsxFull(buffer){
       }
     }
 
+    // F134 control total (row 134, col F = index 5)
+    // Row 134 = index 133 in 0-based array
+    let f134 = null;
+    if(raw[133]){
+      const v=raw[133][5];
+      if(typeof v==="number"&&v>0) f134=v;
+    }
+    // Also check nearby rows (F134 position can vary slightly)
+    if(f134===null){
+      for(let r=130;r<Math.min(140,raw.length);r++){
+        if(raw[r]){
+          const v=raw[r][5];
+          if(typeof v==="number"&&v>50000) {f134=v; break;} // total should be >50g
+        }
+      }
+    }
+
     if(cropRows.length>0||Object.keys(customerOrders).length>0){
       sheets.push({
         date,
@@ -111,6 +192,7 @@ function parseXlsxFull(buffer){
         isFriday:isFriday(sn),
         cropRows,
         customerOrders,
+        f134,  // control total for validation
       });
     }
   }
@@ -268,7 +350,14 @@ function computeB(sheets,pkFn){
   for(const{date,cropRows}of sheets){
     const pk=pkFn(date);periods.add(pk);
     for(const{name,weightG,units}of cropRows){
-      const kg=(weightG*units)/1000,mix=getMixFamily(name);
+      const kg=(weightG*units)/1000;
+      // Fixed blends: report as-is
+      const fam=getProductFamily(name);
+      if(FIXED_BLENDS.has(fam)){
+        if(!data[fam])data[fam]={};data[fam][pk]=(data[fam][pk]||0)+kg;
+        continue;
+      }
+      const mix=getMixFamily(name);
       if(mix){const sp=MIX_SPLITS[mix];
         if(sp)for(const[c,p]of Object.entries(sp)){if(!data[c])data[c]={};data[c][pk]=(data[c][pk]||0)+kg*p;}
         else{const lb=mix+" (undivided)";unresolved.add(mix);if(!data[lb])data[lb]={};data[lb][pk]=(data[lb][pk]||0)+kg;}
@@ -290,6 +379,23 @@ function HarvestReportTab({sheets}){
     return view==="A"?computeA(sheets,pkFn):computeB(sheets,pkFn);
   },[sheets,view,groupBy]);
 
+  // Compute validation checks
+  const validation = useMemo(()=>{
+    if(!sheets.length) return null;
+    return sheets.map(s=>{
+      const calcTotal = s.cropRows.reduce((sum,r)=>sum+(r.weightG*r.units),0);
+      const match = s.f134 !== null ? Math.abs(calcTotal - s.f134) < 1 : null;
+      return {
+        sheet: s.sheetName,
+        date: s.date,
+        isFriday: s.isFriday,
+        calcTotal,
+        f134: s.f134,
+        match,
+      };
+    });
+  },[sheets]);
+
   if(!sheets.length)return(
     <div style={{textAlign:"center",padding:"60px 20px",color:T.textSub}}>
       <p style={{fontSize:48,margin:"0 0 12px"}}>📊</p>
@@ -300,6 +406,24 @@ function HarvestReportTab({sheets}){
 
   return(
     <div>
+      {/* Validation panel */}
+      {validation && validation.length > 0 && (
+        <div style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,padding:"12px 16px",marginBottom:14}}>
+          <p style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 8px"}}>F134 Validation Checks</p>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {validation.map((v,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,fontSize:12}}>
+                <span style={{fontSize:13}}>{v.match===true?"✅":v.match===false?"❌":"⚠️"}</span>
+                <span style={{fontWeight:600,color:T.textMain,minWidth:160}}>{v.sheetName||v.sheet}</span>
+                <span style={{color:T.textSub}}>Calculated: {(v.calcTotal/1000).toFixed(2)}kg</span>
+                {v.f134!==null&&<span style={{color:T.textSub}}>· F134: {(v.f134/1000).toFixed(2)}kg</span>}
+                {v.match===null&&<span style={{color:T.amber,fontSize:11}}>F134 not found in sheet</span>}
+                {v.match===false&&<span style={{color:T.rust,fontWeight:700,fontSize:11}}>MISMATCH — recalculate</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
           {[["A","By Product"],["B","By Base Crop"]].map(([v,l])=>(
@@ -645,6 +769,32 @@ export default function Reporting(){
             </>
           )}
           {loading&&<span style={{fontSize:13,color:T.sky,fontWeight:600}}>Reading files…</span>}
+          <button
+            onClick={async()=>{
+              setLoading(true);
+              try{
+                const res=await fetch("/.netlify/functions/load-drive-harvest");
+                if(!res.ok)throw new Error(await res.text());
+                const blobs=await res.json();
+                const incoming=[],names=[];
+                for(const{name,data}of blobs){
+                  const bytes=Uint8Array.from(atob(data),c=>c.charCodeAt(0));
+                  const parsed=parseXlsxFull(bytes);
+                  incoming.push(...parsed);
+                  names.push(`${name} (${parsed.length} sheets)`);
+                }
+                setLoadedFiles(prev=>[...prev,...names]);
+                setSheets(prev=>{
+                  const ex=new Set(prev.map(s=>s.sheetName));
+                  return[...prev,...incoming.filter(s=>!ex.has(s.sheetName))].sort((a,b)=>a.date-b.date);
+                });
+              }catch(e){alert("Drive load failed: "+e.message);}
+              setLoading(false);
+            }}
+            style={{padding:"8px 14px",background:"#fff",color:T.green,border:`1px solid ${T.green}`,
+              borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+            <span>📂</span> Load from Google Drive
+          </button>
         </div>
         {loadedFiles.length>0&&(
           <div style={{marginTop:8,display:"flex",gap:8,flexWrap:"wrap"}}>
