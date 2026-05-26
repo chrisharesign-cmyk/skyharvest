@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getTrayStore, subscribeTrayStore, addTray, addTrayNote, addTrayHealth } from "./lib/trayStore.js";
 import TrayDetailCard from "./TrayDetailCard.jsx";
+import Reporting from "./Reporting.jsx";
 
 // ── Shared mobile detection ───────────────────────────────────────────────────
 // Module-level so any view can import useMobile() without prop drilling
@@ -73,7 +74,7 @@ const NAV = [
     { id:"atrisk",     label:"At Risk",          icon:"⚠️", color:"#c0432b" },
   ]},
   { section: "RECORDS", items: [
-    { id:"harvests",     label:"Harvest Report",   icon:"📊", color:"#3e7da1" },
+    { id:"harvests",     label:"Reporting",         icon:"📊", color:"#3e7da1" },
     { id:"provenance",   label:"Provenance Trail",  icon:"🔗", color:"#5a8a2e" },
     { id:"cert",         label:"Certification",     icon:"🏷️", color:"#5a8a2e" },
   ]},
@@ -1390,7 +1391,7 @@ const VIEWS = {
   growroom:    <GrowRoomView/>,
   deliveries:  <DeliveriesView/>,
   cert:        <CertView/>,
-  harvests:    <HarvestReportView/>,
+  harvests:    <Reporting/>,
   roadmap:     <RoadmapView/>,
   trayhealth:  <TrayHealthView/>,
   harvestruns: <HarvestManagerEmbed/>,
