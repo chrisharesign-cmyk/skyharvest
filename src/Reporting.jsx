@@ -218,17 +218,16 @@ function computeProductInsights(sheets){
     }
   }
 
-  // Trend: compare first half vs second half
+  // Trend: last 4 runs vs preceding 4 runs (meaningful recent signal)
   const sortedSheets=[...sheets].sort((a,b)=>a.date-b.date);
-  const mid=Math.floor(sortedSheets.length/2);
-  const firstHalf=sortedSheets.slice(0,mid);
-  const secondHalf=sortedSheets.slice(mid);
+  const recent4=sortedSheets.slice(-4);
+  const prev4=sortedSheets.slice(-8,-4);
   const firstKg={},secondKg={};
-  for(const{cropRows}of firstHalf)for(const{name,weightG,units}of cropRows){
+  for(const{cropRows}of prev4)for(const{name,weightG,units}of cropRows){
     const f=getProductFamily(name);if(!f)continue;
     firstKg[f]=(firstKg[f]||0)+(weightG*units)/1000;
   }
-  for(const{cropRows}of secondHalf)for(const{name,weightG,units}of cropRows){
+  for(const{cropRows}of recent4)for(const{name,weightG,units}of cropRows){
     const f=getProductFamily(name);if(!f)continue;
     secondKg[f]=(secondKg[f]||0)+(weightG*units)/1000;
   }
@@ -475,16 +474,20 @@ function HarvestReportTab({sheets}){
 }
 
 // ── Product Insights tab ──────────────────────────────────────────────────────
-function ProductInsightsTab({sheets}){
-  const [sortBy,setSortBy]=useState("volume"); // volume | trend | wedFri
+function ProductInsightsTab({sheets,dateRange}){
+  const [sortBy,setSortBy]=useState("volume");
+  const [unit,setUnit]=useState("kg"); // kg | packs
   const insights=useMemo(()=>sheets.length?computeProductInsights(sheets):null,[sheets]);
   if(!insights)return<EmptyState/>;
 
-  const sorted=[...insights.products].sort((a,b)=>{
-    if(sortBy==="trend")return b.trend-a.trend;
-    if(sortBy==="wedFri")return b.wedPct-a.wedPct;
-    return b.totalKg-a.totalKg;
-  });
+  const sorted=useMemo(()=>[...insights.products].sort((a,b)=>{
+    if(sortBy==="trend")  return b.trend-a.trend;
+    if(sortBy==="wedFri") return b.wedPct-a.wedPct;
+    if(sortBy==="packs")  return b.totalPacks-a.totalPacks;
+    return b.totalKg-a.totalKg; // default: kg
+  }),[insights,sortBy]);
+
+  const maxVal=unit==="packs"?sorted[0]?.totalPacks||1:sorted[0]?.totalKg||1;
 
   const maxKg=sorted[0]?.totalKg||1;
 
@@ -514,14 +517,25 @@ function ProductInsightsTab({sheets}){
               {insights.products.length} products · sorted by {sortBy==="volume"?"total volume":sortBy==="trend"?"growth trend":"Wed/Fri split"}
             </p>
           </div>
-          <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
-            {[["volume","Volume"],["trend","Trend"],["wedFri","Wed/Fri"]].map(([k,l])=>(
-              <button key={k} onClick={()=>setSortBy(k)}
-                style={{padding:"6px 12px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
-                  background:sortBy===k?T.sky:"#fff",color:sortBy===k?"#fff":T.textMain}}>
-                {l}
-              </button>
-            ))}
+          <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
+              {[["volume","kg ↓"],["packs","Packs ↓"],["trend","Trend"],["wedFri","Wed/Fri"]].map(([k,l])=>(
+                <button key={k} onClick={()=>setSortBy(k)}
+                  style={{padding:"6px 11px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
+                    background:sortBy===k?T.sky:"#fff",color:sortBy===k?"#fff":T.textMain}}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
+              {[["kg","kg"],["packs","Packs"]].map(([k,l])=>(
+                <button key={k} onClick={()=>setUnit(k)}
+                  style={{padding:"6px 10px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
+                    background:unit===k?T.green:"#fff",color:unit===k?"#fff":T.textMain}}>
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <div style={{maxHeight:420,overflowY:"auto"}}>
@@ -584,9 +598,27 @@ function ProductInsightsTab({sheets}){
 }
 
 // ── Customer Insights tab ─────────────────────────────────────────────────────
-function CustomerInsightsTab({sheets}){
+function SortHeader({label,col,sortConfig,onSort}){
+  const active=sortConfig.col===col;
+  const dir=active?sortConfig.dir:"";
+  return(
+    <th onClick={()=>onSort(col)}
+      style={{textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,
+        color:active?T.sky:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em",
+        whiteSpace:"nowrap",cursor:"pointer",userSelect:"none"}}>
+      {label}{active?(dir==="asc"?" ↑":" ↓"):" ↕"}
+    </th>
+  );
+}
+
+function CustomerInsightsTab({sheets,dateRange}){
   const [filterTier,setFilterTier]=useState("All");
-  const [sortBy,setSortBy]=useState("volume");
+  const [unit,setUnit]=useState("packs"); // packs | kg
+  const [sortConfig,setSortConfig]=useState({col:"packs",dir:"desc"});
+
+  const handleSort=(col)=>{
+    setSortConfig(prev=>({col,dir:prev.col===col&&prev.dir==="desc"?"asc":"desc"}));
+  };
   const insights=useMemo(()=>sheets.length?computeCustomerInsights(sheets):null,[sheets]);
   if(!insights)return<EmptyState/>;
 
@@ -597,9 +629,22 @@ function CustomerInsightsTab({sheets}){
     Lapsed:{bg:"#fde8e8",text:"#b91c1c",desc:"Orders <15% of dates"},
   };
 
-  const filtered=insights.customers
-    .filter(c=>filterTier==="All"||c.tier===filterTier)
-    .sort((a,b)=>sortBy==="volume"?b.packs-a.packs:sortBy==="freq"?b.freq-a.freq:b.packs-a.packs);
+  const filtered=useMemo(()=>{
+    if(!insights) return [];
+    const arr=insights.customers.filter(c=>filterTier==="All"||c.tier===filterTier);
+    const {col,dir}=sortConfig;
+    const m=dir==="asc"?1:-1;
+    return [...arr].sort((a,b)=>{
+      if(col==="name")    return m*a.name.localeCompare(b.name);
+      if(col==="tier")    return m*["Core","Regular","Occasional","Lapsed"].indexOf(a.tier)-["Core","Regular","Occasional","Lapsed"].indexOf(b.tier);
+      if(col==="freq")    return m*(a.freq-b.freq);
+      if(col==="pct")     return m*(a.pct-b.pct);
+      if(col==="packs")   return m*(a.packs-b.packs);
+      if(col==="wed")     return m*(a.wed-b.wed);
+      if(col==="fri")     return m*(a.fri-b.fri);
+      return 0;
+    });
+  },[insights,filterTier,sortConfig]);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
@@ -649,10 +694,10 @@ function CustomerInsightsTab({sheets}){
             </p>
           </div>
           <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
-            {[["volume","By volume"],["freq","By frequency"]].map(([k,l])=>(
-              <button key={k} onClick={()=>setSortBy(k)}
+            {[["packs","Packs"],["kg","Weight (kg)"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setUnit(k)}
                 style={{padding:"6px 12px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
-                  background:sortBy===k?T.sky:"#fff",color:sortBy===k?"#fff":T.textMain}}>
+                  background:unit===k?T.sky:"#fff",color:unit===k?"#fff":T.textMain}}>
                 {l}
               </button>
             ))}
@@ -660,11 +705,15 @@ function CustomerInsightsTab({sheets}){
         </div>
         <div style={{maxHeight:480,overflowY:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:"#f8fafb",position:"sticky",top:0}}>
-              {["#","Customer","Tier","Dates ordered","% of dates","Packs","Wed","Fri"].map(h=>(
-                <th key={h} style={{textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,
-                  color:T.textSub,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
-              ))}
+            <thead><tr style={{background:"#f8fafb",position:"sticky",top:0,zIndex:5}}>
+              <th style={{textAlign:"left",padding:"8px 14px",fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase"}}>#</th>
+              <SortHeader label="Customer"     col="name"  sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label="Tier"         col="tier"  sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label="Dates ordered"col="freq"  sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label="% of dates"   col="pct"   sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label="Packs"        col="packs" sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label="Wed"          col="wed"   sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label="Fri"          col="fri"   sortConfig={sortConfig} onSort={handleSort}/>
             </tr></thead>
             <tbody>{filtered.map((c,i)=>(
               <tr key={c.name} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc"}}
@@ -710,6 +759,37 @@ export default function Reporting(){
   const [sheets,setSheets]=useState([]);
   const [loading,setLoading]=useState(false);
   const [loadedFiles,setLoadedFiles]=useState([]);
+  const [periodFilter,setPeriodFilter]=useState("all"); // all | 4w | 8w | 12w | ytd
+  const [customRange,setCustomRange]=useState({from:"",to:""});
+
+  // Filter sheets by selected period
+  const filteredSheets=useMemo(()=>{
+    if(!sheets.length) return sheets;
+    const sorted=[...sheets].sort((a,b)=>b.date-a.date);
+    const latest=sorted[0]?.date||new Date();
+    if(periodFilter==="4w") {
+      const cutoff=new Date(latest); cutoff.setDate(cutoff.getDate()-28);
+      return sheets.filter(s=>s.date>=cutoff);
+    }
+    if(periodFilter==="8w") {
+      const cutoff=new Date(latest); cutoff.setDate(cutoff.getDate()-56);
+      return sheets.filter(s=>s.date>=cutoff);
+    }
+    if(periodFilter==="12w") {
+      const cutoff=new Date(latest); cutoff.setDate(cutoff.getDate()-84);
+      return sheets.filter(s=>s.date>=cutoff);
+    }
+    if(periodFilter==="ytd") {
+      const cutoff=new Date(latest.getFullYear(),0,1);
+      return sheets.filter(s=>s.date>=cutoff);
+    }
+    if(periodFilter==="custom"&&customRange.from&&customRange.to) {
+      const from=new Date(customRange.from);
+      const to=new Date(customRange.to);
+      return sheets.filter(s=>s.date>=from&&s.date<=to);
+    }
+    return sheets;
+  },[sheets,periodFilter,customRange]);
 
   const handleFiles=useCallback(async(files)=>{
     setLoading(true);
@@ -806,6 +886,39 @@ export default function Reporting(){
         )}
       </div>
 
+      {/* Period filter */}
+      {sheets.length>0&&(
+        <div style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,
+          padding:"10px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",
+            letterSpacing:"0.06em",flexShrink:0}}>Period:</span>
+          <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
+            {[["all","All data"],["4w","4 weeks"],["8w","8 weeks"],["12w","12 weeks"],["ytd","Year to date"],["custom","Custom"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setPeriodFilter(k)}
+                style={{padding:"5px 11px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
+                  background:periodFilter===k?T.sky:"#fff",color:periodFilter===k?"#fff":T.textMain}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {periodFilter==="custom"&&(
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input type="date" value={customRange.from}
+                onChange={e=>setCustomRange(p=>({...p,from:e.target.value}))}
+                style={{padding:"4px 8px",border:`1px solid ${T.border}`,borderRadius:6,fontSize:12}}/>
+              <span style={{fontSize:12,color:T.textSub}}>to</span>
+              <input type="date" value={customRange.to}
+                onChange={e=>setCustomRange(p=>({...p,to:e.target.value}))}
+                style={{padding:"4px 8px",border:`1px solid ${T.border}`,borderRadius:6,fontSize:12}}/>
+            </div>
+          )}
+          <span style={{fontSize:11,color:T.textSub,marginLeft:4}}>
+            {filteredSheets.length} of {sheets.length} sheets
+            {filteredSheets.length>0&&` · ${filteredSheets[0].date.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} → ${filteredSheets[filteredSheets.length-1].date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}`}
+          </span>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{display:"flex",gap:0,marginBottom:20,background:T.surface,borderRadius:10,
         border:`1px solid ${T.border}`,padding:4,width:"fit-content"}}>
@@ -821,9 +934,9 @@ export default function Reporting(){
       </div>
 
       {/* Tab content */}
-      {activeTab==="report"    && <HarvestReportTab    sheets={sheets}/>}
-      {activeTab==="customers" && <CustomerInsightsTab sheets={sheets}/>}
-      {activeTab==="products"  && <ProductInsightsTab  sheets={sheets}/>}
+      {activeTab==="report"    && <HarvestReportTab    sheets={filteredSheets}/>}
+      {activeTab==="customers" && <CustomerInsightsTab sheets={filteredSheets}/>}
+      {activeTab==="products"  && <ProductInsightsTab  sheets={filteredSheets}/>}
     </div>
   );
 }
