@@ -327,8 +327,17 @@ export default function BusinessInsights({ sheets }) {
   const [aiReport, setAiReport] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [elapsed, setElapsed]   = useState(0);
 
   const { periodLabel='' } = (() => { try { return useReportingSheets(); } catch(e) { return {}; } })();
+
+  // Elapsed timer — resets on each generate call
+  React.useEffect(() => {
+    if (!loading) { setElapsed(0); return; }
+    setElapsed(0);
+    const t = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [loading]);
 
   const ins = useMemo(()=>{ try { return computeInsights(sheets); } catch(e){ console.error(e); return null; } },[sheets]);
 
@@ -455,9 +464,30 @@ export default function BusinessInsights({ sheets }) {
               {(loading || error || aiReport) && (
                 <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
                   {loading&&(
-                    <div style={{padding:'20px 0',textAlign:'center',color:T.textSub}}>
-                      <div style={{fontSize:20,marginBottom:6}}>⏳</div>
-                      <div style={{fontSize:12,fontWeight:600}}>Generating narrative…</div>
+                    <div style={{padding:'16px 0'}}>
+                      {/* Progress bar */}
+                      <div style={{height:4,background:'#e2e8ed',borderRadius:4,overflow:'hidden',marginBottom:14}}>
+                        <div style={{
+                          height:'100%',
+                          borderRadius:4,
+                          background: elapsed > 45 ? T.amber : T.sky,
+                          width: `${Math.min(92, elapsed < 20 ? (elapsed/20)*75 : 75 + ((elapsed-20)/25)*17)}%`,
+                          transition:'width 1s linear, background 0.3s'
+                        }}/>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <div style={{fontSize:12,color:T.textSub}}>
+                          {elapsed < 10  && <span>Analysing account data…</span>}
+                          {elapsed >= 10 && elapsed < 20 && <span>Building narrative…</span>}
+                          {elapsed >= 20 && elapsed < 35 && <span>Almost there…</span>}
+                          {elapsed >= 35 && elapsed < 50 && <span style={{color:T.amber}}>Taking longer than usual — still running</span>}
+                          {elapsed >= 50 && <span style={{color:T.rust}}>Still waiting — if this stalls, click Generate again</span>}
+                        </div>
+                        <div style={{fontSize:11,fontWeight:700,color:elapsed>45?T.amber:T.textSub,
+                          background:'#f4f6f8',padding:'2px 8px',borderRadius:6,flexShrink:0}}>
+                          {elapsed}s
+                        </div>
+                      </div>
                     </div>
                   )}
                   {error&&<div style={{background:'#fef2f2',border:`1px solid #fca5a5`,
