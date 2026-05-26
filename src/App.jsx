@@ -1400,6 +1400,23 @@ function CalendarView() {
 }
 
 
+function OrderInboxWrapper() {
+  const isMobile = useMobile();
+  return (
+    <div style={{
+      position:"fixed",
+      top:44,
+      left:isMobile?0:234,
+      right:0,
+      bottom:isMobile?64:0,
+      zIndex:10,
+      overflow:"hidden"
+    }}>
+      <OrderInbox/>
+    </div>
+  );
+}
+
 // ── VIEWS object ──────────────────────────────────────────────────────────────
 const VIEWS = {
   dashboard:   <DashboardView/>,
@@ -1412,7 +1429,7 @@ const VIEWS = {
   trayhealth:  <TrayHealthView/>,
   harvestruns: <HarvestManagerEmbed/>,
   picklist:    <PickListView/>,
-  orderinbox:  <div style={{height:"calc(100vh - 44px)",overflow:"hidden",margin:"-24px"}}><OrderInbox/></div>,
+  orderinbox:  <OrderInboxWrapper/>,
   customers:   <CustomersView/>,
   atrisk:      <AtRiskView/>,
   calendar:    <CalendarView/>,
@@ -1488,13 +1505,21 @@ export default function SkyHarvestMIS() {
 
       {/* Sidebar — desktop only */}
       {!isMobile && <div style={{width:234,background:T.sidebar,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
-        <div style={{padding:"16px 16px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${T.green},${T.sky})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",flexShrink:0}}>SH</div>
+        <div style={{padding:"14px 14px 12px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <div style={{width:34,height:34,borderRadius:8,background:`linear-gradient(135deg,${T.green},${T.sky})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff",flexShrink:0}}>SH</div>
             <div>
-              <p style={{color:"#fff",fontWeight:800,fontSize:14,margin:0}}>Sky Harvest</p>
+              <p style={{color:"#fff",fontWeight:800,fontSize:13,margin:0}}>Sky Harvest</p>
               <p style={{color:T.textDim,fontSize:10,margin:0}}>Vancouver Island</p>
             </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"rgba(255,255,255,0.06)",borderRadius:8}}>
+            <div style={{width:26,height:26,borderRadius:13,background:`linear-gradient(135deg,${T.sky},${T.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>CA</div>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{color:"#fff",fontSize:11,fontWeight:600,margin:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>chris@skyharvest.ca</p>
+              <p style={{color:T.textDim,fontSize:9,margin:0}}>Owner</p>
+            </div>
+            <span style={{color:T.textDim,fontSize:12,cursor:"pointer",flexShrink:0}}>↪</span>
           </div>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"6px 0"}}>
@@ -1515,14 +1540,7 @@ export default function SkyHarvestMIS() {
             </div>
           ))}
         </div>
-        <div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:30,height:30,borderRadius:15,background:`linear-gradient(135deg,${T.sky},${T.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#fff",flexShrink:0}}>CA</div>
-          <div style={{flex:1,minWidth:0}}>
-            <p style={{color:"#fff",fontSize:11,fontWeight:600,margin:0}}>chris@skyharvest.ca</p>
-            <p style={{color:T.textDim,fontSize:10,margin:0}}>Owner</p>
-          </div>
-          <span style={{color:T.textDim,fontSize:14,cursor:"pointer"}}>↪</span>
-        </div>
+
       </div>}
 
       {/* Mobile slide-up menu */}
