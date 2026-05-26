@@ -274,28 +274,51 @@ function computeProductInsights(sheets){
     })
     .sort((a,b)=>b.totalKg-a.totalKg);
 
+  // Also compute base crop packs (without mix decomposition - raw pack count by family)
+  const baseCropPacks={};
+  for(const{cropRows}of sheets){
+    for(const{name,units}of cropRows){
+      const mix=getMixFamily(name);
+      if(mix) continue; // mixes don't have a simple pack family
+      const bc=getBaseCrop(name);if(!bc)continue;
+      baseCropPacks[bc]=(baseCropPacks[bc]||0)+units;
+    }
+  }
   const baseCrops=Object.entries(baseCropKg)
-    .map(([name,kg])=>({name,kg}))
+    .map(([name,kg])=>({name,kg,packs:baseCropPacks[name]||0}))
     .sort((a,b)=>b.kg-a.kg);
 
   return{products,baseCrops,monthly};
 }
 
 function computeCustomerInsights(sheets){
-  const custFreq={};  // customer → sheets count
-  const custPacks={}; // customer → total packs
-  const custWed={};   // customer → wed packs
-  const custFri={};   // customer → fri packs
-  const custFirst={}; // customer → first date
+  const custFreq={},custPacks={},custKg={};
+  const custWed={},custFri={},custWedKg={},custFriKg={};
+  const custFirst={};
+
+  // Build product weight lookup from all crop rows across all sheets
+  const prodWeightLookup={};
+  for(const{cropRows}of sheets){
+    for(const{name,weightG}of cropRows){
+      if(!prodWeightLookup[name]&&weightG>0) prodWeightLookup[name]=weightG;
+    }
+  }
 
   for(const{date,customerOrders,isFriday:isFri}of sheets){
     for(const[cust,prods]of Object.entries(customerOrders)){
       const packs=Object.values(prods).reduce((s,v)=>s+v,0);
       if(packs===0)continue;
+      // Compute kg for this customer this sheet
+      let kg=0;
+      for(const[prod,qty]of Object.entries(prods)){
+        const wg=prodWeightLookup[prod]||0;
+        kg+=qty*wg/1000;
+      }
       custFreq[cust]=(custFreq[cust]||0)+1;
       custPacks[cust]=(custPacks[cust]||0)+packs;
-      if(isFri)custFri[cust]=(custFri[cust]||0)+packs;
-      else custWed[cust]=(custWed[cust]||0)+packs;
+      custKg[cust]=(custKg[cust]||0)+kg;
+      if(isFri){custFri[cust]=(custFri[cust]||0)+packs;custFriKg[cust]=(custFriKg[cust]||0)+kg;}
+      else{custWed[cust]=(custWed[cust]||0)+packs;custWedKg[cust]=(custWedKg[cust]||0)+kg;}
       if(!custFirst[cust]||date<custFirst[cust])custFirst[cust]=date;
     }
   }
@@ -303,11 +326,14 @@ function computeCustomerInsights(sheets){
   const totalSheets=sheets.length;
   const customers=Object.entries(custFreq).map(([name,freq])=>{
     const packs=custPacks[name]||0;
+    const kg=Math.round((custKg[name]||0)*10)/10;
     const wed=custWed[name]||0;
     const fri=custFri[name]||0;
+    const wedKg=Math.round((custWedKg[name]||0)*10)/10;
+    const friKg=Math.round((custFriKg[name]||0)*10)/10;
     const pct=Math.round(freq/totalSheets*100);
     const tier=pct>=70?"Core":pct>=40?"Regular":pct>=15?"Occasional":"Lapsed";
-    return{name,freq,packs,pct,tier,wed,fri,firstDate:custFirst[name]};
+    return{name,freq,packs,kg,pct,tier,wed,fri,wedKg,friKg,firstDate:custFirst[name]};
   }).sort((a,b)=>b.packs-a.packs);
 
   // Tier counts
@@ -558,6 +584,31 @@ function HarvestReportTab({sheets}){
 }
 
 // ── Product Insights tab ──────────────────────────────────────────────────────
+// ── Quarterly grouping ───────────────────────────────────────────────────────
+function getQuarter(date){
+  const m=date.getMonth(); // 0-indexed
+  return `Q${Math.floor(m/3)+1} ${date.getFullYear()}`;
+}
+
+function computeQuarterlyInsights(sheets){
+  const byQuarter={}; // quarter → {product → {packs, kg}}
+  for(const{date,cropRows}of sheets){
+    const q=getQuarter(date);
+    if(!byQuarter[q])byQuarter[q]={};
+    for(const{name,weightG,units}of cropRows){
+      const f=getProductFamily(name);if(!f)continue;
+      if(!byQuarter[q][f])byQuarter[q][f]={packs:0,kg:0};
+      byQuarter[q][f].packs+=units;
+      byQuarter[q][f].kg+=(weightG*units)/1000;
+    }
+  }
+  const quarters=Object.keys(byQuarter).sort((a,b)=>{
+    const [qa,ya]=a.split(" "); const [qb,yb]=b.split(" ");
+    return ya!==yb?Number(ya)-Number(yb):Number(qa[1])-Number(qb[1]);
+  });
+  return{quarters,byQuarter};
+}
+
 function ProductInsightsTab({sheets,dateRange}){
   const [sortBy,setSortBy]=useState("volume");
   const [unit,setUnit]=useState("kg"); // kg | packs
@@ -577,20 +628,70 @@ function ProductInsightsTab({sheets,dateRange}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
-      {/* Summary cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-        {[
-          {label:"Total products tracked",value:insights.products.length,sub:"across all uploads"},
-          {label:"Biggest mover (growth)",value:insights.products.filter(p=>p.trend>20).sort((a,b)=>b.trend-a.trend)[0]?.name||"—",sub:"vs first half of period",isText:true},
-          {label:"Biggest mover (decline)",value:insights.products.filter(p=>p.trend<-20).sort((a,b)=>a.trend-b.trend)[0]?.name||"—",sub:"vs first half of period",isText:true},
-        ].map(kpi=>(
-          <div key={kpi.label} style={{background:T.surface,borderRadius:10,border:`1px solid ${T.border}`,padding:"14px 16px"}}>
-            <p style={{fontSize:10,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 6px"}}>{kpi.label}</p>
-            <p style={{fontSize:kpi.isText?14:24,fontWeight:900,color:T.textMain,margin:"0 0 3px",letterSpacing:"-0.02em",wordBreak:"break-word"}}>{kpi.value}</p>
-            <p style={{fontSize:11,color:T.textSub,margin:0}}>{kpi.sub}</p>
+      {/* Quarterly Top 5 */}
+      {(()=>{
+        const {quarters,byQuarter}=computeQuarterlyInsights(sheets);
+        if(quarters.length===0) return null;
+        // Get top 5 products by total across all quarters
+        const allProds={};
+        for(const q of quarters) for(const[p,v]of Object.entries(byQuarter[q])){
+          if(!allProds[p])allProds[p]={packs:0,kg:0};
+          allProds[p].packs+=v.packs; allProds[p].kg+=v.kg;
+        }
+        const top5=Object.entries(allProds)
+          .sort((a,b)=>unit==="packs"?b[1].packs-a[1].packs:b[1].kg-a[1].kg)
+          .slice(0,5).map(([name])=>name);
+        return(
+          <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:0}}>Top 5 Products by Quarter</p>
+                <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>
+                  {quarters.length} quarter{quarters.length!==1?"s":""} of data · showing {unit==="packs"?"pack counts":"kg harvested"}
+                </p>
+              </div>
+            </div>
+            <div style={{overflow:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{background:T.textMain}}>
+                  <th style={{textAlign:"left",padding:"9px 16px",color:"#fff",fontWeight:700,fontSize:11,
+                    textTransform:"uppercase",position:"sticky",left:0,background:T.textMain,minWidth:160}}>Product</th>
+                  {quarters.map(q=>(
+                    <th key={q} style={{textAlign:"right",padding:"9px 14px",color:"#fff",fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{q}</th>
+                  ))}
+                  <th style={{textAlign:"right",padding:"9px 14px",color:T.green,fontWeight:700,fontSize:11,background:"#0a1b2a"}}>
+                    Total
+                  </th>
+                </tr></thead>
+                <tbody>{top5.map((prod,i)=>{
+                  const rowTotal=quarters.reduce((s,q)=>s+(unit==="packs"?(byQuarter[q][prod]?.packs||0):(byQuarter[q][prod]?.kg||0)),0);
+                  const bg=i%2===0?"#fff":"#fafbfc";
+                  return(
+                    <tr key={prod} style={{borderBottom:`1px solid ${T.border}`,background:bg}}>
+                      <td style={{padding:"9px 16px",fontWeight:600,color:T.textMain,position:"sticky",left:0,background:bg}}>{prod}</td>
+                      {quarters.map(q=>{
+                        const v=unit==="packs"?(byQuarter[q][prod]?.packs||0):(byQuarter[q][prod]?.kg||0);
+                        return <td key={q} style={{textAlign:"right",padding:"9px 14px",color:v>0?T.textMain:"#ddd"}}>
+                          {v>0?(unit==="packs"?v:v.toFixed(1)):"—"}
+                        </td>;
+                      })}
+                      <td style={{textAlign:"right",padding:"9px 14px",fontWeight:800,color:T.sky}}>
+                        {unit==="packs"?rowTotal:rowTotal.toFixed(1)}
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+            {Object.keys(allProds).length>5&&(
+              <p style={{fontSize:11,color:T.textSub,textAlign:"center",padding:"8px",margin:0,
+                borderTop:`1px solid ${T.border}`,background:"#f8fafb"}}>
+                Showing top 5 of {Object.keys(allProds).length} products · sorted by {unit==="packs"?"pack count":"weight"}
+              </p>
+            )}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* Product volume ranking */}
       <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
@@ -653,16 +754,30 @@ function ProductInsightsTab({sheets,dateRange}){
 
       {/* Base crop demand */}
       <div style={{background:T.surface,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}>
-          <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:0}}>True Base Crop Demand</p>
-          <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>
-            After decomposing mixes (Mellow Mix, Spicy Mix etc.) into their component crops — this drives planting decisions
-          </p>
+        <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <p style={{fontSize:13,fontWeight:800,color:T.textMain,margin:0}}>True Base Crop Demand</p>
+            <p style={{fontSize:11,color:T.textSub,margin:"2px 0 0"}}>
+              After decomposing mixes — drives planting decisions. Toggle shows {unit==="kg"?"harvested weight":"pack counts"}.
+            </p>
+          </div>
+          <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`,flexShrink:0}}>
+            {[["kg","kg"],["packs","Packs"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setUnit(k)}
+                style={{padding:"5px 10px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
+                  background:unit===k?T.green:"#fff",color:unit===k?"#fff":T.textMain}}>
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={{padding:"12px 20px",display:"flex",flexDirection:"column",gap:8}}>
           {insights.baseCrops.filter(c=>c.kg>0.5).map((c,i)=>{
-            const maxKgBase=insights.baseCrops[0]?.kg||1;
-            const pct=Math.round(c.kg/maxKgBase*100);
+            const val=unit==="packs"?c.packs:c.kg;
+            const maxVal=unit==="packs"
+              ?(insights.baseCrops.find(x=>x.packs>0)?.packs||1)
+              :(insights.baseCrops[0]?.kg||1);
+            const pct=Math.round(val/maxVal*100);
             return(
               <div key={c.name} style={{display:"flex",alignItems:"center",gap:12}}>
                 <span style={{fontSize:11,fontWeight:600,color:T.textMain,width:130,flexShrink:0}}>{c.name}</span>
@@ -671,7 +786,9 @@ function ProductInsightsTab({sheets,dateRange}){
                     background:i===0?T.sky:i===1?T.green:i===2?T.amber:"#94a3b8",
                     borderRadius:6,transition:"width 0.3s"}}/>
                 </div>
-                <span style={{fontSize:12,fontWeight:800,color:T.textMain,width:52,textAlign:"right",flexShrink:0}}>{c.kg.toFixed(1)}kg</span>
+                <span style={{fontSize:12,fontWeight:800,color:T.textMain,width:70,textAlign:"right",flexShrink:0}}>
+                  {unit==="packs"?`${c.packs} packs`:`${c.kg.toFixed(1)}kg`}
+                </span>
               </div>
             );
           })}
@@ -720,12 +837,12 @@ function CustomerInsightsTab({sheets,dateRange}){
     const m=dir==="asc"?1:-1;
     return [...arr].sort((a,b)=>{
       if(col==="name")    return m*a.name.localeCompare(b.name);
-      if(col==="tier")    return m*["Core","Regular","Occasional","Lapsed"].indexOf(a.tier)-["Core","Regular","Occasional","Lapsed"].indexOf(b.tier);
+      if(col==="tier")    return m*(["Core","Regular","Occasional","Lapsed"].indexOf(a.tier)-["Core","Regular","Occasional","Lapsed"].indexOf(b.tier));
       if(col==="freq")    return m*(a.freq-b.freq);
       if(col==="pct")     return m*(a.pct-b.pct);
-      if(col==="packs")   return m*(a.packs-b.packs);
-      if(col==="wed")     return m*(a.wed-b.wed);
-      if(col==="fri")     return m*(a.fri-b.fri);
+      if(col==="packs")   return m*(unit==="kg"?a.kg-b.kg:a.packs-b.packs);
+      if(col==="wed")     return m*(unit==="kg"?a.wedKg-b.wedKg:a.wed-b.wed);
+      if(col==="fri")     return m*(unit==="kg"?a.friKg-b.friKg:a.fri-b.fri);
       return 0;
     });
   },[insights,filterTier,sortConfig]);
@@ -795,9 +912,9 @@ function CustomerInsightsTab({sheets,dateRange}){
               <SortHeader label="Tier"         col="tier"  sortConfig={sortConfig} onSort={handleSort}/>
               <SortHeader label="Dates ordered"col="freq"  sortConfig={sortConfig} onSort={handleSort}/>
               <SortHeader label="% of dates"   col="pct"   sortConfig={sortConfig} onSort={handleSort}/>
-              <SortHeader label="Packs"        col="packs" sortConfig={sortConfig} onSort={handleSort}/>
-              <SortHeader label="Wed"          col="wed"   sortConfig={sortConfig} onSort={handleSort}/>
-              <SortHeader label="Fri"          col="fri"   sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label={unit==="kg"?"Total kg":"Packs"} col="packs" sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label={unit==="kg"?"Wed kg":"Wed"}   col="wed"   sortConfig={sortConfig} onSort={handleSort}/>
+              <SortHeader label={unit==="kg"?"Fri kg":"Fri"}   col="fri"   sortConfig={sortConfig} onSort={handleSort}/>
             </tr></thead>
             <tbody>{filtered.map((c,i)=>(
               <tr key={c.name} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":"#fafbfc"}}
@@ -815,9 +932,15 @@ function CustomerInsightsTab({sheets,dateRange}){
                     <span style={{fontSize:11,color:T.textSub}}>{c.pct}%</span>
                   </div>
                 </td>
-                <td style={{padding:"9px 14px",fontWeight:800,color:T.sky}}>{c.packs}</td>
-                <td style={{padding:"9px 14px",color:T.textSub,fontSize:11}}>{c.wed}</td>
-                <td style={{padding:"9px 14px",color:T.textSub,fontSize:11}}>{c.fri}</td>
+                <td style={{padding:"9px 14px",fontWeight:800,color:T.sky}}>
+                  {unit==="kg"?`${c.kg}kg`:c.packs}
+                </td>
+                <td style={{padding:"9px 14px",color:T.textSub,fontSize:11}}>
+                  {unit==="kg"?`${c.wedKg}kg`:c.wed}
+                </td>
+                <td style={{padding:"9px 14px",color:T.textSub,fontSize:11}}>
+                  {unit==="kg"?`${c.friKg}kg`:c.fri}
+                </td>
               </tr>
             ))}</tbody>
           </table>
