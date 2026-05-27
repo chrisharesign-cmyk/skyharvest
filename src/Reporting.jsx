@@ -478,7 +478,7 @@ function computeA(sheets,pkFn){
       if(!data[f])data[f]={};data[f][pk]=(data[f][pk]||0)+kg;
     }
   }
-  return{data,periods:[...periods].sort()};
+  return{data,periods:[...periods].sort().reverse()};
 }
 function computeB(sheets,pkFn){
   const data={},periods=new Set(),unresolved=new Set();
@@ -499,7 +499,7 @@ function computeB(sheets,pkFn){
       }else{const c=getBaseCrop(name);if(!c)continue;if(!data[c])data[c]={};data[c][pk]=(data[c][pk]||0)+kg;}
     }
   }
-  return{data,periods:[...periods].sort(),unresolved:[...unresolved]};
+  return{data,periods:[...periods].sort().reverse(),unresolved:[...unresolved]};
 }
 
 function HarvestReportTab({sheets}){
@@ -709,7 +709,7 @@ function computeQuarterlyInsights(sheets){
   }
   const quarters=Object.keys(byQuarter).sort((a,b)=>{
     const [qa,ya]=a.split(" "); const [qb,yb]=b.split(" ");
-    return ya!==yb?Number(ya)-Number(yb):Number(qa[1])-Number(qb[1]);
+    return ya!==yb?Number(yb)-Number(ya):Number(qb[1])-Number(qa[1]);
   });
   return{quarters,byQuarter};
 }
@@ -1473,7 +1473,7 @@ function computeCropWeightsByWeek(sheets) {
     else            weekMap[wk].wed = s;
   }
 
-  const sortedWeeks = Object.keys(weekMap).sort();
+  const sortedWeeks = Object.keys(weekMap).sort().reverse();
   const weeks = sortedWeeks.map(wk => {
     const { wed, fri } = weekMap[wk];
     const anchor = wed || fri;
