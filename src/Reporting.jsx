@@ -131,15 +131,19 @@ function parseXlsxFull(buffer){
     const ws=wb.Sheets[sn];
     const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
 
-    // Detect sheet format
-    // Post-Feb 2026: Row 5 has "AI Calc Wt." in col C, "Sub-total" in col D
-    // Pre-Mar 2026:  Row 5 has "Sub-total" in col C, no AI Calc column
+    // Detect sheet format — scan cols 0-5 for AI Calc (col position varies between
+    // native Excel saves vs Google Sheets exports due to column A handling)
     let headerRow=4;
     let hasAICalc=false;
+    let aiCalcCol=2; // default (standard Excel save)
     for(let i=0;i<Math.min(8,raw.length);i++){
-      if(raw[i]&&String(raw[i][2]||"").toLowerCase().includes("ai calc")){
-        headerRow=i; hasAICalc=true; break;
+      if(!raw[i]) continue;
+      for(let c=0;c<6;c++){
+        if(String(raw[i][c]||"").toLowerCase().includes("ai calc")){
+          headerRow=i; hasAICalc=true; aiCalcCol=c; break;
+        }
       }
+      if(hasAICalc) break;
     }
     // If no AI Calc column, this is a pre-March sheet with units only
     if(!hasAICalc){
@@ -191,22 +195,29 @@ function parseXlsxFull(buffer){
       continue;
     }
 
-    // Build customer column map from header row
+    // Build customer column map — scan from after the operational columns
+    // Start from aiCalcCol+2 (after sub-total) and skip known operational headers
+    const OPER_HDRS=new Set(['CUT SUNDAY','CUT MONDAY','TO CUT TUE','ACTUAL CUT TUE',
+      'Who Cut','Who Packaged','Start Time','End Time','Notes','TO CUT WED',
+      'ACTUAL CUT','Start time','End Time','ACTUAL CUT FRI','TO CUT THUR',
+      'TO CUT FRI','IN STOCK','IN STOCK FROM FRI/SAT']);
     const custCols={};
     const hdr=raw[headerRow]||[];
-    for(let col=20;col<hdr.length;col++){
+    for(let col=aiCalcCol+2;col<hdr.length;col++){
       const v=hdr[col];
-      if(v&&typeof v==="string"&&v.trim().length>1){
+      if(v&&typeof v==="string"&&v.trim().length>1&&!OPER_HDRS.has(v.trim())){
         custCols[col]=v.trim().replace(/\s*\(QB\)\s*/g,"").trim();
       }
     }
 
+    const nmCol=aiCalcCol-1; // product name column (one before AI Calc)
+    const subTotCol=aiCalcCol+1; // sub-total column (one after AI Calc)
     const cropRows=[];
     const customerOrders={}; // customer → {product → qty}
 
     for(let i=headerRow+1;i<raw.length;i++){
       const r=raw[i];if(!r)continue;
-      const nm=r[1],wg=r[2],u=r[3];
+      const nm=r[nmCol],wg=r[aiCalcCol],u=r[subTotCol];
       if(!nm||typeof nm!=="string")continue;
       if(SKIP.some(p=>p.test(nm.trim())))continue;
       if(typeof wg!=="number"||wg<=0)continue;
