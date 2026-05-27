@@ -8,7 +8,6 @@ const T = {
   textMain:"#1a2e3b", textSub:"#5a7080", sidebar:"#0f2535",
 };
 
-// ── ISO week key ──────────────────────────────────────────────────────────────
 function isoWeekKey(date) {
   const d = new Date(date);
   d.setHours(0,0,0,0);
@@ -25,13 +24,11 @@ function mondayLabel(date) {
   return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
 }
 
-// ── WEEK-AWARE analytics engine ───────────────────────────────────────────────
 function computeInsights(sheets) {
   if (!sheets || sheets.length === 0) return null;
   const sorted = [...sheets].filter(s=>s.date).sort((a,b)=>a.date-b.date);
   if (!sorted.length) return null;
 
-  // Group individual sheets into calendar weeks
   const weekMap = {};
   for (const s of sorted) {
     const wk = isoWeekKey(s.date);
@@ -43,7 +40,6 @@ function computeInsights(sheets) {
   const totalWeeks = weekKeys.length;
   const weekLabels = weekKeys.map(wk => mondayLabel(weekMap[wk].earliest));
 
-  // Weekly production (units) — one value per calendar week
   const weeklyProduction = weekKeys.map(wk =>
     weekMap[wk].sheets.reduce((sum,s) => {
       if (s.cropRows?.length > 0) return sum + s.cropRows.reduce((a,r)=>a+r.units,0);
@@ -52,7 +48,6 @@ function computeInsights(sheets) {
     },0)
   );
 
-  // Per-customer WEEKLY volumes (Wed + Fri merged per week)
   const customerWeekly = {};
   weekKeys.forEach((wk,wi) => {
     for (const s of weekMap[wk].sheets) {
@@ -65,9 +60,6 @@ function computeInsights(sheets) {
   for (const arr of Object.values(customerWeekly))
     while (arr.length < totalWeeks) arr.push(0);
 
-  // Trend thresholds
-  // earlyStart/earlyEnd: skip first 3 weeks (Jan spike / Dine Out Vancouver anomaly)
-  // and use weeks 4-7 as the stable baseline — avoids measuring vs an exceptional period
   const recentCutoff = Math.max(0, totalWeeks - 7);
   const earlyStart   = totalWeeks > 7 ? 3 : 0;
   const earlyEnd     = totalWeeks > 7 ? Math.min(7, totalWeeks) : Math.min(3, totalWeeks);
@@ -88,18 +80,17 @@ function computeInsights(sheets) {
   }).filter(c=>c.totalUnits>0).sort((a,b)=>b.totalUnits-a.totalUnits);
 
   const totalAllUnits = customerStats.reduce((a,c)=>a+c.totalUnits,0);
-
-  const dormantAccounts  = customerStats.filter(c=>c.isDormant && c.earlyAvg>=5);
-  const growingAccounts  = customerStats.filter(c=>!c.isDormant && c.trend!==null && c.trend>=15 && c.recentAvg>=4 && c.activeWeeks>=5);
-  const decliningAccounts= customerStats.filter(c=>!c.isDormant && c.trend!==null && c.trend<=-25 && c.earlyAvg>=8 && c.recentAvg<c.earlyAvg*0.75);
-  const top10            = customerStats.slice(0,10);
+  const dormantAccounts   = customerStats.filter(c=>c.isDormant && c.earlyAvg>=5);
+  const growingAccounts   = customerStats.filter(c=>!c.isDormant && c.trend!==null && c.trend>=15 && c.recentAvg>=4 && c.activeWeeks>=5);
+  const decliningAccounts = customerStats.filter(c=>!c.isDormant && c.trend!==null && c.trend<=-25 && c.earlyAvg>=8 && c.recentAvg<c.earlyAvg*0.75);
+  const top10             = customerStats.slice(0,10);
 
   const top1pct  = totalAllUnits>0?(top10[0]?.totalUnits/totalAllUnits*100).toFixed(1):0;
   const top5pct  = totalAllUnits>0?(top10.slice(0,5).reduce((s,c)=>s+c.totalUnits,0)/totalAllUnits*100).toFixed(1):0;
   const top10pct = totalAllUnits>0?(top10.reduce((s,c)=>s+c.totalUnits,0)/totalAllUnits*100).toFixed(1):0;
 
-  const peakWeek    = weeklyProduction.indexOf(Math.max(...weeklyProduction));
-  const recentProd  = weeklyProduction.slice(recentCutoff);
+  const peakWeek      = weeklyProduction.indexOf(Math.max(...weeklyProduction));
+  const recentProd    = weeklyProduction.slice(recentCutoff);
   const recentProdAvg = recentProd.reduce((a,b)=>a+b,0)/Math.max(recentProd.length,1);
   const earlyProd     = weeklyProduction.slice(earlyStart, earlyEnd);
   const earlyProdAvg  = earlyProd.reduce((a,b)=>a+b,0)/Math.max(earlyProd.length,1);
@@ -121,7 +112,6 @@ function computeInsights(sheets) {
   };
 }
 
-// ── AI prompt builder ─────────────────────────────────────────────────────────
 function buildPrompt(ins, periodLabel) {
   const fmt = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
   const custTable = ins.top10.map((c,i) =>
@@ -193,7 +183,6 @@ Three to five numbered, specific actions derivable directly from this data. One 
 UK English. Never say "it is worth noting" or "it is important to". Lead every section with the most important finding.`;
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
 function Spark({ data, color=T.sky, height=28, width=80 }) {
   if (!data || data.length<2) return null;
   const max = Math.max(...data,1);
@@ -328,10 +317,11 @@ export default function BusinessInsights({ sheets }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [elapsed, setElapsed]   = useState(0);
+  const [apiKey, setApiKey]     = useState(() => localStorage.getItem('sh_anthropic_key') || '');
+  const [showKeyInput, setShowKeyInput] = useState(false);
 
   const { periodLabel='' } = (() => { try { return useReportingSheets(); } catch(e) { return {}; } })();
 
-  // Elapsed timer — resets on each generate call
   React.useEffect(() => {
     if (!loading) { setElapsed(0); return; }
     setElapsed(0);
@@ -341,20 +331,17 @@ export default function BusinessInsights({ sheets }) {
 
   const ins = useMemo(()=>{ try { return computeInsights(sheets); } catch(e){ console.error(e); return null; } },[sheets]);
 
-  const [apiKey, setApiKey]           = React.useState(() => localStorage.getItem('sh_anthropic_key') || '');
-  const [showKeyInput, setShowKeyInput] = React.useState(false);
-
   const saveKey = (k) => {
     const trimmed = k.trim();
     localStorage.setItem('sh_anthropic_key', trimmed);
     setApiKey(trimmed);
     setShowKeyInput(false);
+    // auto-generate after saving key
+    if (trimmed) setTimeout(() => generateReportWithKey(trimmed), 100);
   };
 
-  const generateReport = useCallback(async()=>{
+  const generateReportWithKey = useCallback(async (key) => {
     if (!ins) return;
-    const key = localStorage.getItem('sh_anthropic_key') || '';
-    if (!key) { setShowKeyInput(true); return; }
     setLoading(true); setError(''); setAiReport('');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 50000);
@@ -366,10 +353,10 @@ export default function BusinessInsights({ sheets }) {
           'Content-Type':'application/json',
           'x-api-key': key,
           'anthropic-version':'2023-06-01',
-          'anthropic-dangerous-direct-browser-allowed':'true',
+          'anthropic-dangerous-direct-browser-access':'true',
         },
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
+          model:'claude-sonnet-4-5-20251001',
           max_tokens:1600,
           messages:[{role:'user',content:buildPrompt(ins,periodLabel)}]
         })
@@ -390,7 +377,13 @@ export default function BusinessInsights({ sheets }) {
       clearTimeout(timeout);
       setLoading(false);
     }
-  },[ins,periodLabel]);
+  }, [ins, periodLabel]);
+
+  const generateReport = useCallback(() => {
+    const key = localStorage.getItem('sh_anthropic_key') || '';
+    if (!key) { setShowKeyInput(true); return; }
+    generateReportWithKey(key);
+  }, [generateReportWithKey]);
 
   if (!sheets||sheets.length===0) return (
     <div style={{textAlign:'center',padding:'60px 20px',color:T.textSub}}>
@@ -408,7 +401,7 @@ export default function BusinessInsights({ sheets }) {
   return (
     <div style={{padding:'0 0 32px'}}>
 
-      {/* Header */}
+      {/* ── Header bar ── */}
       <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
         padding:'14px 20px',marginBottom:12,display:'flex',alignItems:'center',
         justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
@@ -417,23 +410,64 @@ export default function BusinessInsights({ sheets }) {
           <div style={{fontSize:11,color:T.textSub,marginTop:2}}>
             {fmtDate(ins.dateRange.from)} → {fmtDate(ins.dateRange.to)}
             {' · '}{ins.totalWeeks} weeks · {ins.totalCustomers} active accounts
-            {ins.weeklyProduction.some((_,i,a)=>i>0)?` · Wed+Fri combined`:''}
           </div>
         </div>
-        <button onClick={generateReport} disabled={loading}
-          style={{padding:'7px 16px',fontSize:12,fontWeight:700,border:'none',
-            borderRadius:8,cursor:loading?'wait':'pointer',
-            background:loading?'#c8dce8':T.green,color:'#fff'}}>
-          {loading?'⏳ Generating…':'✨ Generate AI Insights'}
-        </button>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          {apiKey && (
+            <button onClick={()=>setShowKeyInput(v=>!v)}
+              style={{padding:'5px 10px',fontSize:11,border:`1px solid ${T.border}`,
+                borderRadius:7,background:'#fff',color:T.textSub,cursor:'pointer'}}>
+              🔑 Change API key
+            </button>
+          )}
+          <button onClick={generateReport} disabled={loading}
+            style={{padding:'7px 16px',fontSize:12,fontWeight:700,border:'none',
+              borderRadius:8,cursor:loading?'wait':'pointer',
+              background:loading?'#c8dce8':T.green,color:'#fff'}}>
+            {loading?'⏳ Generating…':'✨ Generate AI Insights'}
+          </button>
+        </div>
       </div>
 
-      {/* Cost note + period pill */}
+      {/* ── API key entry panel — shown above everything when key is missing ── */}
+      {showKeyInput && (
+        <div style={{background:'#fffbeb',border:`2px solid ${T.amber}`,borderRadius:10,
+          padding:'18px 20px',marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.textMain,marginBottom:4}}>
+            🔑 Enter your Anthropic API key to generate the AI narrative
+          </div>
+          <div style={{fontSize:11,color:T.textSub,marginBottom:12}}>
+            Get a free key at{' '}
+            <a href="https://console.anthropic.com" target="_blank" rel="noreferrer"
+              style={{color:T.sky}}>console.anthropic.com</a>
+            {' '}→ API Keys → Create key. Stored locally in your browser only — never sent anywhere except directly to Anthropic when you generate a report.
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <input autoFocus placeholder="sk-ant-..."
+              id="apiKeyInput"
+              onKeyDown={e=>e.key==='Enter'&&saveKey(e.target.value)}
+              style={{flex:'1 1 280px',padding:'8px 12px',fontSize:13,
+                border:`1px solid ${T.amber}`,borderRadius:8,outline:'none'}}/>
+            <button onClick={()=>saveKey(document.getElementById('apiKeyInput').value)}
+              style={{padding:'8px 18px',background:T.green,color:'#fff',border:'none',
+                borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+              Save &amp; Generate
+            </button>
+            <button onClick={()=>setShowKeyInput(false)}
+              style={{padding:'8px 14px',background:'#fff',color:T.textSub,
+                border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,cursor:'pointer',flexShrink:0}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cost note ── */}
       <div style={{background:'#f0f6fb',border:'1px solid #d0e4f0',borderRadius:8,
         padding:'7px 14px',marginBottom:14,display:'flex',alignItems:'center',
         justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
         <span style={{fontSize:11,color:T.textSub}}>
-          <strong style={{color:T.sky}}>AI report cost: ~1p per run</strong>
+          <strong style={{color:T.sky}}>AI narrative cost: ~1p per run</strong>
           {' '}(£0.52/yr weekly · £0.12/yr monthly) · Claude Sonnet · ~1,700 tokens
         </span>
         {periodLabel&&periodLabel!=='No data'&&(
@@ -444,174 +478,180 @@ export default function BusinessInsights({ sheets }) {
         )}
       </div>
 
-      {/* Overview — always visible */}
-      <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      {/* ── Stat cards ── */}
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:14}}>
+        <StatCard label="Peak Weekly Output" value={ins.peakUnits}
+          sub={`Week of ${ins.weekLabels[ins.peakWeek]}`} color={T.sky}/>
+        <StatCard label="Recent Average" value={ins.recentProdAvg}
+          sub="units/week (last 7 weeks)" color={T.sky}/>
+        <StatCard label="Volume Change"
+          value={(prodChg>0?'+':'')+(prodChg??'—')+(prodChg!==null?'%':'')}
+          sub="early period vs recent" color={prodChgColor}/>
+        <StatCard label="Active Accounts" value={ins.totalCustomers}
+          sub={`Top 1 = ${ins.concentration.top1}% of volume`} color={T.purple}/>
+        <StatCard label="Dormant Accounts" value={ins.dormantAccounts.length}
+          sub={ins.dormantAccounts.length>0
+            ?`~${Math.round(ins.dormantAccounts.reduce((s,c)=>s+c.earlyAvg,0))}/wk lost`
+            :'none identified'}
+          color={ins.dormantAccounts.length>0?T.rust:T.green}/>
+        <StatCard label="Growing Accounts" value={ins.growingAccounts.length}
+          sub={ins.growingAccounts.length>0
+            ?`+${Math.round(ins.growingAccounts.reduce((s,c)=>s+(c.recentAvg-c.earlyAvg),0))}/wk added`
+            :'none >15% growth'}
+          color={T.green}/>
+      </div>
 
-          {/* Stat cards */}
-          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-            <StatCard label="Peak Weekly Output" value={ins.peakUnits}
-              sub={`Week of ${ins.weekLabels[ins.peakWeek]}`} color={T.sky}/>
-            <StatCard label="Recent Average" value={ins.recentProdAvg}
-              sub="units/week (last 7 weeks)" color={T.sky}/>
-            <StatCard label="Volume Change"
-              value={(prodChg>0?'+':'')+(prodChg??'—')+(prodChg!==null?'%':'')}
-              sub="early period vs recent" color={prodChgColor}/>
-            <StatCard label="Active Accounts" value={ins.totalCustomers}
-              sub={`Top 1 = ${ins.concentration.top1}% of volume`} color={T.purple}/>
-            <StatCard label="Dormant Accounts" value={ins.dormantAccounts.length}
-              sub={ins.dormantAccounts.length>0
-                ?`~${Math.round(ins.dormantAccounts.reduce((s,c)=>s+c.earlyAvg,0))}/wk lost`
-                :'none identified'}
-              color={ins.dormantAccounts.length>0?T.rust:T.green}/>
-            <StatCard label="Growing Accounts" value={ins.growingAccounts.length}
-              sub={ins.growingAccounts.length>0
-                ?`+${Math.round(ins.growingAccounts.reduce((s,c)=>s+(c.recentAvg-c.earlyAvg),0))}/wk added`
-                :'none >15% growth'}
-              color={T.green}/>
-          </div>
-
-          {/* Production chart */}
-          <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:'16px 20px'}}>
-            <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:12}}>
-              Weekly Production Volume (combined Wed + Fri)
-              {ins.isPlateaued&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,
-                color:'#7c5cbf',background:'#f0eaf8',padding:'2px 7px',borderRadius:8}}>PLATEAU</span>}
-            </div>
-            <ProdChart labels={ins.weekLabels} data={ins.weeklyProduction}/>
-          </div>
-
-          {/* Two-column: top accounts + 4 panels */}
-          <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
-
-            {/* Top 10 accounts */}
-            <div style={{flex:'2 1 320px',background:T.surface,border:`1px solid ${T.border}`,
-              borderRadius:10,padding:'16px 20px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:4}}>
-                Top 10 Accounts
-              </div>
-              <div style={{fontSize:11,color:T.textSub,marginBottom:10,lineHeight:1.5,
-                paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
-                Sparkline = weekly order volume (oldest → newest). Trend % compares the last 7 weeks against weeks 4–7 as a stable baseline, skipping January which was elevated by Dine Out Vancouver. Colour: <span style={{color:T.green,fontWeight:700}}>green</span> = growing &gt;15%, <span style={{color:T.rust,fontWeight:700}}>red</span> = declining &gt;25%, <span style={{color:T.amber,fontWeight:700}}>amber</span> = in between.
-              </div>
-              {ins.top10.map((c,i)=><AccountRow key={c.name} c={c} rank={i+1}/>)}
-              {/* API key entry — shown when key not yet saved */}
-              {showKeyInput && (
-                <div style={{marginTop:16,padding:14,background:'#f0f6fb',
-                  border:'1px solid #d0e4f0',borderRadius:10}}>
-                  <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:6}}>
-                    Enter your Anthropic API key to generate reports
-                  </div>
-                  <div style={{fontSize:11,color:T.textSub,marginBottom:10}}>
-                    Get a free key at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{color:T.sky}}>console.anthropic.com</a>.
-                    Stored locally in your browser only — never sent anywhere except directly to Anthropic.
-                  </div>
-                  <div style={{display:'flex',gap:8}}>
-                    <input autoFocus placeholder="sk-ant-api03-..."
-                      defaultValue={apiKey}
-                      onKeyDown={e=>e.key==='Enter'&&saveKey(e.target.value)}
-                      id="apiKeyInput"
-                      style={{flex:1,padding:'7px 10px',fontSize:12,border:`1px solid ${T.border}`,
-                        borderRadius:7,outline:'none'}}/>
-                    <button onClick={()=>saveKey(document.getElementById('apiKeyInput').value)}
-                      style={{padding:'7px 14px',background:T.green,color:'#fff',border:'none',
-                        borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                      Save &amp; Generate
-                    </button>
-                    <button onClick={()=>setShowKeyInput(false)}
-                      style={{padding:'7px 10px',background:'#fff',color:T.textSub,
-                        border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,cursor:'pointer'}}>
-                      Cancel
-                    </button>
-                  </div>
-                  {apiKey && <div style={{fontSize:10,color:T.green,marginTop:6}}>
-                    ✓ Key saved — click Save &amp; Generate or press Enter
-                  </div>}
-                </div>
-              )}
-
-              {/* Narrative — generated inline below accounts */}
-              {(loading || error || aiReport) && (
-                <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
-                  {loading&&(
-                    <div style={{padding:'16px 0'}}>
-                      {/* Progress bar */}
-                      <div style={{height:4,background:'#e2e8ed',borderRadius:4,overflow:'hidden',marginBottom:14}}>
-                        <div style={{
-                          height:'100%',
-                          borderRadius:4,
-                          background: elapsed > 45 ? T.amber : T.sky,
-                          width: `${Math.min(92, elapsed < 20 ? (elapsed/20)*75 : 75 + ((elapsed-20)/25)*17)}%`,
-                          transition:'width 1s linear, background 0.3s'
-                        }}/>
-                      </div>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                        <div style={{fontSize:12,color:T.textSub}}>
-                          {elapsed < 10  && <span>Analysing account data…</span>}
-                          {elapsed >= 10 && elapsed < 20 && <span>Building narrative…</span>}
-                          {elapsed >= 20 && elapsed < 35 && <span>Almost there…</span>}
-                          {elapsed >= 35 && elapsed < 50 && <span style={{color:T.amber}}>Taking longer than usual — still running</span>}
-                          {elapsed >= 50 && <span style={{color:T.rust}}>Still waiting — if this stalls, click Generate again</span>}
-                        </div>
-                        <div style={{fontSize:11,fontWeight:700,color:elapsed>45?T.amber:T.textSub,
-                          background:'#f4f6f8',padding:'2px 8px',borderRadius:6,flexShrink:0}}>
-                          {elapsed}s
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {error&&<div style={{background:'#fef2f2',border:`1px solid #fca5a5`,
-                    borderRadius:8,padding:'12px 16px',color:T.rust,fontSize:12}}>{error}</div>}
-                  {aiReport&&<ReportRenderer text={aiReport}/>}
-                </div>
-              )}
-            </div>
-
-            {/* Right panels — order: Concentration, Growing, Declining, Dormant */}
-            <div style={{flex:'1 1 240px',display:'flex',flexDirection:'column',gap:12}}>
-
-              {/* Concentration */}
-              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:'14px 18px'}}>
-                <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:3}}>📊 Concentration</div>
-                <div style={{fontSize:11,color:T.textSub,marginBottom:10,lineHeight:1.5,
-                  paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
-                  How dependent the business is on its largest accounts. High concentration means significant revenue risk if a key account reduces or leaves.
-                </div>
-                {[
-                  ['Top 1', ins.concentration.top1+'%', ins.top10[0]?.name||''],
-                  ['Top 5', ins.concentration.top5+'%', 'of total volume'],
-                  ['Top 10',ins.concentration.top10+'%','of total volume'],
-                ].map(([lbl,val,sub])=>(
-                  <div key={lbl} style={{display:'flex',justifyContent:'space-between',
-                    alignItems:'center',padding:'5px 0',borderBottom:`1px solid #f4f6f8`}}>
-                    <div style={{fontSize:11,fontWeight:700,color:T.textSub}}>{lbl}</div>
-                    <div style={{fontSize:13,fontWeight:800,color:T.sky}}>{val}</div>
-                    <div style={{fontSize:10,color:T.textSub,maxWidth:110,textAlign:'right',
-                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Growing */}
-              <SidePanel icon="🟢" title="Growing"
-                explanation="Active accounts whose recent 7-week average is more than 15% above their early baseline. Genuine demand momentum worth protecting and building on."
-                items={ins.growingAccounts} valueKey="trend" color={T.green}
-                emptyText="No accounts showing >15% growth."/>
-
-              {/* Declining */}
-              <SidePanel icon="🟡" title="Declining"
-                explanation="Active accounts whose recent volume is more than 25% below their early baseline but still ordering. Each one is a retention risk — the trend matters more than the current volume."
-                items={ins.decliningAccounts} valueKey="trend" color={T.amber}
-                emptyText="No accounts with >25% decline."/>
-
-              {/* Dormant */}
-              <SidePanel icon="🔴" title="Dormant"
-                explanation="Accounts with meaningful order history that have placed no orders in the last 7 weeks. Not confirmed lost — could be seasonal, a chef change, or a service issue — but each needs a direct conversation."
-                items={ins.dormantAccounts} valueKey="earlyAvg" valueLabel="was" color={T.rust}
-                emptyText="No dormant accounts identified."/>
-
-            </div>
-          </div>
+      {/* ── Production chart ── */}
+      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+        padding:'16px 20px',marginBottom:14}}>
+        <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:12}}>
+          Weekly Production Volume (combined Wed + Fri)
+          {ins.isPlateaued&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,
+            color:'#7c5cbf',background:'#f0eaf8',padding:'2px 7px',borderRadius:8}}>PLATEAU</span>}
         </div>
+        <ProdChart labels={ins.weekLabels} data={ins.weeklyProduction}/>
+      </div>
+
+      {/* ── Two-column: accounts + panels ── */}
+      <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:14}}>
+
+        {/* Top 10 accounts */}
+        <div style={{flex:'2 1 320px',background:T.surface,border:`1px solid ${T.border}`,
+          borderRadius:10,padding:'16px 20px'}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:4}}>
+            Top 10 Accounts
+          </div>
+          <div style={{fontSize:11,color:T.textSub,marginBottom:10,lineHeight:1.5,
+            paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
+            Sparkline = weekly order volume (oldest → newest). Trend % compares the last 7 weeks against weeks 4–7 as a stable baseline. Colour: <span style={{color:T.green,fontWeight:700}}>green</span> = growing &gt;15%, <span style={{color:T.rust,fontWeight:700}}>red</span> = declining &gt;25%, <span style={{color:T.amber,fontWeight:700}}>amber</span> = in between.
+          </div>
+          {ins.top10.map((c,i)=><AccountRow key={c.name} c={c} rank={i+1}/>)}
+        </div>
+
+        {/* Right panels */}
+        <div style={{flex:'1 1 240px',display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:'14px 18px'}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:3}}>📊 Concentration</div>
+            <div style={{fontSize:11,color:T.textSub,marginBottom:10,lineHeight:1.5,
+              paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>
+              How dependent the business is on its largest accounts.
+            </div>
+            {[
+              ['Top 1', ins.concentration.top1+'%', ins.top10[0]?.name||''],
+              ['Top 5', ins.concentration.top5+'%', 'of total volume'],
+              ['Top 10',ins.concentration.top10+'%','of total volume'],
+            ].map(([lbl,val,sub])=>(
+              <div key={lbl} style={{display:'flex',justifyContent:'space-between',
+                alignItems:'center',padding:'5px 0',borderBottom:`1px solid #f4f6f8`}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.textSub}}>{lbl}</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.sky}}>{val}</div>
+                <div style={{fontSize:10,color:T.textSub,maxWidth:110,textAlign:'right',
+                  overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          <SidePanel icon="🟢" title="Growing"
+            explanation="Active accounts whose recent 7-week average is more than 15% above their early baseline."
+            items={ins.growingAccounts} valueKey="trend" color={T.green}
+            emptyText="No accounts showing >15% growth."/>
+
+          <SidePanel icon="🟡" title="Declining"
+            explanation="Active accounts whose recent volume is more than 25% below their early baseline but still ordering."
+            items={ins.decliningAccounts} valueKey="trend" color={T.amber}
+            emptyText="No accounts with >25% decline."/>
+
+          <SidePanel icon="🔴" title="Dormant"
+            explanation="Accounts with meaningful order history that have placed no orders in the last 7 weeks."
+            items={ins.dormantAccounts} valueKey="earlyAvg" valueLabel="was" color={T.rust}
+            emptyText="No dormant accounts identified."/>
+        </div>
+      </div>
+
+      {/* ── AI NARRATIVE SECTION — full width, below all charts ── */}
+      <div style={{background:T.surface,border:`2px solid ${T.sky}`,borderRadius:12,
+        padding:'20px 24px'}}>
+
+        {/* Section header */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+          marginBottom:16,flexWrap:'wrap',gap:10}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:800,color:T.sidebar}}>
+              ✨ AI Narrative Analysis
+            </div>
+            <div style={{fontSize:11,color:T.textSub,marginTop:2}}>
+              Claude's interpretation of the data above — trends, risks, opportunities and recommended actions
+            </div>
+          </div>
+          {aiReport && (
+            <button onClick={generateReport} disabled={loading}
+              style={{padding:'6px 14px',fontSize:11,fontWeight:700,border:`1px solid ${T.sky}`,
+                borderRadius:7,background:'#fff',color:T.sky,cursor:'pointer'}}>
+              ↻ Regenerate
+            </button>
+          )}
+        </div>
+
+        {/* States */}
+        {!aiReport && !loading && !error && (
+          <div style={{textAlign:'center',padding:'32px 20px',color:T.textSub,
+            border:`1px dashed ${T.border}`,borderRadius:8}}>
+            <div style={{fontSize:28,marginBottom:8}}>✨</div>
+            <div style={{fontSize:13,fontWeight:600,color:T.textMain,marginBottom:4}}>
+              Ready to generate your business narrative
+            </div>
+            <div style={{fontSize:12,marginBottom:16}}>
+              Click the button above to have Claude analyse the data and write a structured report covering production trends, account health, concentration risk and recommended actions.
+            </div>
+            <button onClick={generateReport}
+              style={{padding:'9px 22px',background:T.green,color:'#fff',border:'none',
+                borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+              ✨ Generate AI Insights
+            </button>
+          </div>
+        )}
+
+        {loading && (
+          <div style={{padding:'24px 0'}}>
+            <div style={{height:4,background:'#e2e8ed',borderRadius:4,overflow:'hidden',marginBottom:14}}>
+              <div style={{
+                height:'100%', borderRadius:4,
+                background: elapsed > 45 ? T.amber : T.sky,
+                width: `${Math.min(92, elapsed < 20 ? (elapsed/20)*75 : 75 + ((elapsed-20)/25)*17)}%`,
+                transition:'width 1s linear, background 0.3s'
+              }}/>
+            </div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{fontSize:12,color:T.textSub}}>
+                {elapsed < 10  && <span>Analysing account data…</span>}
+                {elapsed >= 10 && elapsed < 20 && <span>Building narrative…</span>}
+                {elapsed >= 20 && elapsed < 35 && <span>Almost there…</span>}
+                {elapsed >= 35 && elapsed < 50 && <span style={{color:T.amber}}>Taking longer than usual — still running</span>}
+                {elapsed >= 50 && <span style={{color:T.rust}}>Still waiting — if this stalls, click Regenerate</span>}
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:elapsed>45?T.amber:T.textSub,
+                background:'#f4f6f8',padding:'2px 8px',borderRadius:6}}>
+                {elapsed}s
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{background:'#fef2f2',border:`1px solid #fca5a5`,
+            borderRadius:8,padding:'14px 18px',color:T.rust,fontSize:13}}>
+            {error}
+            <button onClick={generateReport}
+              style={{marginLeft:12,padding:'4px 10px',background:T.rust,color:'#fff',
+                border:'none',borderRadius:6,fontSize:11,cursor:'pointer',fontWeight:700}}>
+              Try again
+            </button>
+          </div>
+        )}
+
+        {aiReport && <ReportRenderer text={aiReport}/>}
+      </div>
+
     </div>
   );
 }
