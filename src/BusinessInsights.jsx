@@ -434,7 +434,7 @@ export default function BusinessInsights({ sheets }) {
       </div>
 
       {/* ── API key entry panel — shown above everything when key is missing ── */}
-      {showKeyInput && (
+      {showKeyPrompt && (
         <div style={{background:'#fffbeb',border:`2px solid ${T.amber}`,borderRadius:10,
           padding:'18px 20px',marginBottom:14}}>
           <div style={{fontSize:13,fontWeight:700,color:T.textMain,marginBottom:4}}>
