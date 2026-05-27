@@ -1188,7 +1188,7 @@ export default function Reporting(){
     }
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      scope: 'https://www.googleapis.com/auth/drive.readonly email profile',
       callback: async (resp) => {
         if (resp.error) { setDriveError(resp.error); return; }
         const token = resp.access_token;
