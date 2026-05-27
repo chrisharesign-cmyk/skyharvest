@@ -1057,6 +1057,14 @@ function EmptyState(){
 }
 
 // ── Main Reporting component ──────────────────────────────────────────────────
+// ── Google Drive integration ─────────────────────────────────────────────────
+const GOOGLE_CLIENT_ID = '140549821798-sfaerjie7k3e4jgajqhu2trqljpadudb.apps.googleusercontent.com';
+const ALLOWED_EMAILS   = ['chris.haresign@gmail.com', 'chris@skyharvest.ca'];
+const DRIVE_FILES      = {
+  wednesday: '1ogeskDWS7Pz0V8vUBk6h20n5_kHhM427',
+  friday:    '1oDhXuEH3b0ag0-W2Id2Bh9hamoDH0QGY',
+};
+
 export default function Reporting(){
   const [activeTab,setActiveTab]=useState("report");
   const [sheets,setSheets]=useState([]);
@@ -1067,6 +1075,15 @@ export default function Reporting(){
   const [loading,setLoading]=useState(false);
   const [loadedFiles,setLoadedFiles]=useState([]);
   const [showDriveInfo,setShowDriveInfo]=useState(false);
+  // Google Drive state
+  const [googleToken,setGoogleToken]=useState(()=>{
+    const t=localStorage.getItem('sh_google_token');
+    const e=localStorage.getItem('sh_google_expiry');
+    return (t&&e&&Date.now()<parseInt(e))?t:null;
+  });
+  const [googleUser,setGoogleUser]=useState(()=>localStorage.getItem('sh_google_user')||null);
+  const [driveLoading,setDriveLoading]=useState(false);
+  const [driveError,setDriveError]=useState('');
   const [periodFilter,setPeriodFilter]=useState("all"); // all | 4w | 8w | 12w | ytd
   const [customRange,setCustomRange]=useState({from:"",to:""});
 
@@ -1129,6 +1146,92 @@ export default function Reporting(){
     setLoading(false);
   },[]);
 
+  // ── Google Drive functions ───────────────────────────────────────────────
+  const loadFromDrive = useCallback(async (token) => {
+    setDriveLoading(true); setDriveError('');
+    setSheets([]); setLoadedFiles([]);
+    try {
+      const incoming=[], names=[];
+      for (const [label, fileId] of Object.entries(DRIVE_FILES)) {
+        const res = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) {
+          if (res.status===401) {
+            localStorage.removeItem('sh_google_token');
+            localStorage.removeItem('sh_google_expiry');
+            setGoogleToken(null);
+            setDriveError('Session expired — click Sign in with Google to refresh');
+            return;
+          }
+          throw new Error(`Drive error ${res.status}`);
+        }
+        const buf = await res.arrayBuffer();
+        const parsed = parseXlsxFull(new Uint8Array(buf));
+        incoming.push(...parsed);
+        names.push(`${label} (${parsed.length} sheets)`);
+      }
+      setLoadedFiles(names);
+      setSheets(incoming.sort((a,b)=>a.date-b.date));
+    } catch(e) {
+      setDriveError('Failed to load: ' + e.message);
+    } finally {
+      setDriveLoading(false);
+    }
+  }, []);
+
+  const signInWithGoogle = useCallback(() => {
+    if (!window.google?.accounts?.oauth2) {
+      setDriveError('Google sign-in not ready — wait a moment and try again');
+      return;
+    }
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: async (resp) => {
+        if (resp.error) { setDriveError(resp.error); return; }
+        const token = resp.access_token;
+        const expiry = Date.now() + (resp.expires_in * 1000);
+        // Verify email
+        try {
+          const ui = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${token}`);
+          const info = await ui.json();
+          const email = (info.email||'').toLowerCase();
+          if (!ALLOWED_EMAILS.map(e=>e.toLowerCase()).includes(email)) {
+            setDriveError(`Access denied for ${info.email} — only authorised accounts can access this data`);
+            return;
+          }
+          localStorage.setItem('sh_google_token', token);
+          localStorage.setItem('sh_google_expiry', expiry.toString());
+          localStorage.setItem('sh_google_user', info.email);
+          setGoogleToken(token);
+          setGoogleUser(info.email);
+          loadFromDrive(token);
+        } catch(e) {
+          setDriveError('Sign-in failed: ' + e.message);
+        }
+      }
+    });
+    client.requestAccessToken();
+  }, [loadFromDrive]);
+
+  // Load GIS script once
+  useEffect(() => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    document.head.appendChild(s);
+    return () => { try { document.head.removeChild(s); } catch(e){} };
+  }, []);
+
+  // Auto-load from Drive on mount if token already stored
+  useEffect(() => {
+    if (googleToken && sheets.length === 0) {
+      loadFromDrive(googleToken);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const TABS=[
     {id:"report",      label:"📊 Harvest Report"},
     {id:"customers",   label:"👥 Customer Insights"},
@@ -1183,37 +1286,45 @@ export default function Reporting(){
             </>
           )}
           {loading&&<span style={{fontSize:13,color:T.sky,fontWeight:600}}>Reading files…</span>}
-          <div style={{position:"relative",flexShrink:0}} title="Google Drive auto-load requires one-time OAuth setup in Netlify — contact Chris H to enable">
-            <button
-              onClick={()=>setShowDriveInfo(s=>!s)}
-              style={{padding:"8px 14px",background:"#fff",color:T.textSub,
-                border:`1px solid ${T.border}`,borderRadius:8,fontSize:12,
-                fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
-              <span>📂</span> Load from Google Drive
-              <span style={{fontSize:10,background:"#fef3dc",color:"#92400e",
-                padding:"1px 5px",borderRadius:6,fontWeight:800}}>Setup needed</span>
-            </button>
-            {showDriveInfo&&(
-              <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:300,
-                background:"#fff",border:`1px solid ${T.border}`,borderRadius:10,
-                padding:14,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:50}}>
-                <p style={{fontSize:12,fontWeight:700,color:T.textMain,margin:"0 0 8px"}}>
-                  📂 Google Drive auto-load
-                </p>
-                <p style={{fontSize:11,color:T.textSub,margin:"0 0 10px",lineHeight:1.6}}>
-                  To load files automatically from Google Drive, the Netlify deployment needs a one-time OAuth credential setup. Until then, use the Choose files button above.
-                </p>
-                <p style={{fontSize:11,fontWeight:700,color:T.sky,margin:"0 0 6px"}}>How to enable it:</p>
-                <ol style={{fontSize:11,color:T.textSub,margin:0,paddingLeft:16,lineHeight:2}}>
-                  <li>Chris Arthur shares his harvest folder with chris.haresign@gmail.com (Viewer)</li>
-                  <li>Add Google OAuth token to Netlify environment variables</li>
-                  <li>Button becomes live — no upload needed</li>
-                </ol>
-                <button onClick={()=>setShowDriveInfo(false)}
-                  style={{marginTop:10,width:"100%",padding:"7px",background:T.sky,
-                    color:"#fff",border:"none",borderRadius:7,fontSize:12,
-                    fontWeight:700,cursor:"pointer"}}>Got it</button>
+          {/* Google Drive auth UI */}
+          <div style={{flexShrink:0}}>
+            {googleToken ? (
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:11,color:T.green,fontWeight:700}}>
+                  ✓ {googleUser}
+                </span>
+                <button onClick={()=>loadFromDrive(googleToken)} disabled={driveLoading}
+                  style={{padding:"7px 13px",background:T.sky,color:"#fff",border:"none",
+                    borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  {driveLoading?"Loading…":"↻ Refresh from Drive"}
+                </button>
+                <button onClick={()=>{
+                  localStorage.removeItem('sh_google_token');
+                  localStorage.removeItem('sh_google_expiry');
+                  localStorage.removeItem('sh_google_user');
+                  setGoogleToken(null); setGoogleUser(null);
+                  setSheets([]); setLoadedFiles([]);
+                }} style={{padding:"7px 10px",background:"#fff",color:T.textSub,
+                  border:`1px solid ${T.border}`,borderRadius:8,fontSize:11,cursor:"pointer"}}>
+                  Sign out
+                </button>
               </div>
+            ) : (
+              <button onClick={signInWithGoogle} disabled={driveLoading}
+                style={{padding:"8px 16px",background:"#4285f4",color:"#fff",border:"none",
+                  borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:8}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/>
+                </svg>
+                Sign in with Google
+              </button>
+            )}
+            {driveError&&(
+              <div style={{marginTop:6,fontSize:11,color:T.rust,maxWidth:320}}>{driveError}</div>
             )}
           </div>
         </div>
@@ -1250,7 +1361,7 @@ export default function Reporting(){
                   : "upload both the Wednesday and Friday harvest xlsx files for complete weekly data. Loading only one file shows roughly half your actual production."}
               </span>
               {!missing && <span style={{fontSize:11,color:"#b45309",display:"block",marginTop:2}}>
-                Until Google Drive is connected, select both files together when you click Choose files.
+                Google Drive connected above — or upload xlsx files manually.
               </span>}
             </div>
           </div>
