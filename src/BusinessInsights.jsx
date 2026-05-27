@@ -317,73 +317,36 @@ export default function BusinessInsights({ sheets }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [elapsed, setElapsed]   = useState(0);
-  const [apiKey, setApiKey]     = useState(() => localStorage.getItem('sh_anthropic_key') || '');
-  const [showKeyInput, setShowKeyInput] = useState(false);
-
-  const { periodLabel='' } = (() => { try { return useReportingSheets(); } catch(e) { return {}; } })();
-
-  React.useEffect(() => {
-    if (!loading) { setElapsed(0); return; }
-    setElapsed(0);
-    const t = setInterval(() => setElapsed(e => e + 1), 1000);
-    return () => clearInterval(t);
-  }, [loading]);
-
-  const ins = useMemo(()=>{ try { return computeInsights(sheets); } catch(e){ console.error(e); return null; } },[sheets]);
-
-  const saveKey = (k) => {
-    const trimmed = k.trim();
-    localStorage.setItem('sh_anthropic_key', trimmed);
-    setApiKey(trimmed);
-    setShowKeyInput(false);
-    // auto-generate after saving key
-    if (trimmed) setTimeout(() => generateReportWithKey(trimmed), 100);
-  };
-
-  const generateReportWithKey = useCallback(async (key) => {
+  const generateReport = useCallback(async () => {
     if (!ins) return;
     setLoading(true); setError(''); setAiReport('');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 50000);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
+      const res = await fetch('/api/generate-insights', {
+        method: 'POST',
         signal: controller.signal,
-        headers:{
-          'Content-Type':'application/json',
-          'x-api-key': key,
-          'anthropic-version':'2023-06-01',
-          'anthropic-dangerous-direct-browser-access':'true',
-        },
-        body:JSON.stringify({
-          model:'claude-sonnet-4-5-20251001',
-          max_tokens:1600,
-          messages:[{role:'user',content:buildPrompt(ins,periodLabel)}]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: buildPrompt(ins, periodLabel) }),
       });
       if (!res.ok) {
         const err = await res.json().catch(()=>({}));
-        throw new Error(err?.error?.message || `API error ${res.status}`);
+        throw new Error(err?.error?.message || `Server error ${res.status}`);
       }
       const data = await res.json();
-      const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n') || '';
+      const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('
+') || '';
       if (!text) throw new Error('Empty response — try again');
       setAiReport(text);
     } catch(e) {
       setError(e.name==='AbortError'
-        ? 'Timed out after 50s — check connection and try again'
+        ? 'Timed out after 50s — try again'
         : 'Error: ' + e.message);
     } finally {
       clearTimeout(timeout);
       setLoading(false);
     }
   }, [ins, periodLabel]);
-
-  const generateReport = useCallback(() => {
-    const key = localStorage.getItem('sh_anthropic_key') || '';
-    if (!key) { setShowKeyInput(true); return; }
-    generateReportWithKey(key);
-  }, [generateReportWithKey]);
 
   if (!sheets||sheets.length===0) return (
     <div style={{textAlign:'center',padding:'60px 20px',color:T.textSub}}>
