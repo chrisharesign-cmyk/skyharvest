@@ -317,6 +317,18 @@ export default function BusinessInsights({ sheets }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [elapsed, setElapsed]   = useState(0);
+
+  const { periodLabel='' } = (() => { try { return useReportingSheets(); } catch(e) { return {}; } })();
+
+  React.useEffect(() => {
+    if (!loading) { setElapsed(0); return; }
+    setElapsed(0);
+    const t = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [loading]);
+
+  const ins = useMemo(()=>{ try { return computeInsights(sheets); } catch(e){ console.error(e); return null; } },[sheets]);
+
   const generateReport = useCallback(async () => {
     if (!ins) return;
     setLoading(true); setError(''); setAiReport('');
