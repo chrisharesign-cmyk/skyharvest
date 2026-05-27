@@ -341,27 +341,50 @@ export default function BusinessInsights({ sheets }) {
 
   const ins = useMemo(()=>{ try { return computeInsights(sheets); } catch(e){ console.error(e); return null; } },[sheets]);
 
+  const [apiKey, setApiKey]           = React.useState(() => localStorage.getItem('sh_anthropic_key') || '');
+  const [showKeyInput, setShowKeyInput] = React.useState(false);
+
+  const saveKey = (k) => {
+    const trimmed = k.trim();
+    localStorage.setItem('sh_anthropic_key', trimmed);
+    setApiKey(trimmed);
+    setShowKeyInput(false);
+  };
+
   const generateReport = useCallback(async()=>{
     if (!ins) return;
+    const key = localStorage.getItem('sh_anthropic_key') || '';
+    if (!key) { setShowKeyInput(true); return; }
     setLoading(true); setError(''); setAiReport('');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 50000);
     try {
-      const res = await fetch('/api/generate-insights',{
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         signal: controller.signal,
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ prompt: buildPrompt(ins,periodLabel) })
+        headers:{
+          'Content-Type':'application/json',
+          'x-api-key': key,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-allowed':'true',
+        },
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:1600,
+          messages:[{role:'user',content:buildPrompt(ins,periodLabel)}]
+        })
       });
-      if (!res.ok) throw new Error(`Server error ${res.status} — check Netlify function logs`);
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({}));
+        throw new Error(err?.error?.message || `API error ${res.status}`);
+      }
       const data = await res.json();
-      if (data.error) throw new Error(typeof data.error==='string' ? data.error : JSON.stringify(data.error));
       const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n') || '';
-      if (!text) throw new Error('Empty response received — try again');
+      if (!text) throw new Error('Empty response — try again');
       setAiReport(text);
     } catch(e) {
       setError(e.name==='AbortError'
-        ? 'Request timed out after 50 seconds — check your connection and try again'
+        ? 'Timed out after 50s — check connection and try again'
         : 'Error: ' + e.message);
     } finally {
       clearTimeout(timeout);
@@ -471,6 +494,41 @@ export default function BusinessInsights({ sheets }) {
                 Sparkline = weekly order volume (oldest → newest). Trend % compares the last 7 weeks against weeks 4–7 as a stable baseline, skipping January which was elevated by Dine Out Vancouver. Colour: <span style={{color:T.green,fontWeight:700}}>green</span> = growing &gt;15%, <span style={{color:T.rust,fontWeight:700}}>red</span> = declining &gt;25%, <span style={{color:T.amber,fontWeight:700}}>amber</span> = in between.
               </div>
               {ins.top10.map((c,i)=><AccountRow key={c.name} c={c} rank={i+1}/>)}
+              {/* API key entry — shown when key not yet saved */}
+              {showKeyInput && (
+                <div style={{marginTop:16,padding:14,background:'#f0f6fb',
+                  border:'1px solid #d0e4f0',borderRadius:10}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:6}}>
+                    Enter your Anthropic API key to generate reports
+                  </div>
+                  <div style={{fontSize:11,color:T.textSub,marginBottom:10}}>
+                    Get a free key at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{color:T.sky}}>console.anthropic.com</a>.
+                    Stored locally in your browser only — never sent anywhere except directly to Anthropic.
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <input autoFocus placeholder="sk-ant-api03-..."
+                      defaultValue={apiKey}
+                      onKeyDown={e=>e.key==='Enter'&&saveKey(e.target.value)}
+                      id="apiKeyInput"
+                      style={{flex:1,padding:'7px 10px',fontSize:12,border:`1px solid ${T.border}`,
+                        borderRadius:7,outline:'none'}}/>
+                    <button onClick={()=>saveKey(document.getElementById('apiKeyInput').value)}
+                      style={{padding:'7px 14px',background:T.green,color:'#fff',border:'none',
+                        borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                      Save &amp; Generate
+                    </button>
+                    <button onClick={()=>setShowKeyInput(false)}
+                      style={{padding:'7px 10px',background:'#fff',color:T.textSub,
+                        border:`1px solid ${T.border}`,borderRadius:7,fontSize:12,cursor:'pointer'}}>
+                      Cancel
+                    </button>
+                  </div>
+                  {apiKey && <div style={{fontSize:10,color:T.green,marginTop:6}}>
+                    ✓ Key saved — click Save &amp; Generate or press Enter
+                  </div>}
+                </div>
+              )}
+
               {/* Narrative — generated inline below accounts */}
               {(loading || error || aiReport) && (
                 <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
