@@ -329,21 +329,42 @@ export default function BusinessInsights({ sheets }) {
 
   const ins = useMemo(()=>{ try { return computeInsights(sheets); } catch(e){ console.error(e); return null; } },[sheets]);
 
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('sh_api_key') || '');
+  const [showKeyPrompt, setShowKeyPrompt] = useState(false);
+
+  const saveKey = (k) => {
+    const trimmed = k.trim();
+    localStorage.setItem('sh_api_key', trimmed);
+    setApiKey(trimmed);
+    setShowKeyPrompt(false);
+  };
+
   const generateReport = useCallback(async () => {
     if (!ins) return;
-    setLoading(true); setError(''); setAiReport('');
+    const key = localStorage.getItem('sh_api_key') || '';
+    if (!key) { setShowKeyPrompt(true); return; }
+    setLoading(true); setError(''); setAiReport(''); setShowKeyPrompt(false);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 50000);
+    const timeout = setTimeout(() => controller.abort(), 90000);
     try {
-      const res = await fetch('/api/generate-insights', {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: buildPrompt(ins, periodLabel) }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: buildPrompt(ins, periodLabel) }],
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(()=>({}));
-        throw new Error(err?.error?.message || `Server error ${res.status}`);
+        throw new Error(err?.error?.message || `API error ${res.status}`);
       }
       const data = await res.json();
       const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n') || '';
@@ -351,7 +372,7 @@ export default function BusinessInsights({ sheets }) {
       setAiReport(text);
     } catch(e) {
       setError(e.name==='AbortError'
-        ? 'Timed out after 50s — try again'
+        ? 'Request timed out — try again'
         : 'Error: ' + e.message);
     } finally {
       clearTimeout(timeout);
@@ -394,12 +415,21 @@ export default function BusinessInsights({ sheets }) {
               🔑 Change API key
             </button>
           )}
-          <button onClick={generateReport} disabled={loading}
-            style={{padding:'7px 16px',fontSize:12,fontWeight:700,border:'none',
-              borderRadius:8,cursor:loading?'wait':'pointer',
-              background:loading?'#c8dce8':T.green,color:'#fff'}}>
-            {loading?'⏳ Generating…':'✨ Generate AI Insights'}
-          </button>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {apiKey && (
+              <button onClick={()=>setShowKeyPrompt(v=>!v)}
+                style={{padding:'5px 10px',fontSize:11,border:`1px solid ${T.border}`,
+                  borderRadius:7,background:'#fff',color:T.textSub,cursor:'pointer'}}>
+                🔑 Change key
+              </button>
+            )}
+            <button onClick={generateReport} disabled={loading}
+              style={{padding:'7px 16px',fontSize:12,fontWeight:700,border:'none',
+                borderRadius:8,cursor:loading?'wait':'pointer',
+                background:loading?'#c8dce8':T.green,color:'#fff'}}>
+              {loading?'⏳ Generating…':'✨ Generate AI Insights'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -567,7 +597,34 @@ export default function BusinessInsights({ sheets }) {
         </div>
 
         {/* States */}
-        {!aiReport && !loading && !error && (
+        {showKeyPrompt && (
+          <div style={{background:'#fffbeb',border:`2px solid ${T.amber}`,borderRadius:10,
+            padding:'18px 20px',marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.textMain,marginBottom:6}}>
+              🔑 Enter your Anthropic API key
+            </div>
+            <div style={{fontSize:11,color:T.textSub,marginBottom:12}}>
+              Get a key at{' '}
+              <a href="https://console.anthropic.com" target="_blank" rel="noreferrer"
+                style={{color:T.sky}}>console.anthropic.com</a>
+              {' '}→ API Keys → Create key.
+              Saved to your browser only — never sent anywhere except Anthropic.
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <input autoFocus id="skApiKey" placeholder="sk-ant-..."
+                onKeyDown={e=>e.key==='Enter'&&saveKey(document.getElementById('skApiKey').value)}
+                style={{flex:'1 1 260px',padding:'8px 12px',fontSize:13,
+                  border:`1px solid ${T.amber}`,borderRadius:8,outline:'none'}}/>
+              <button onClick={()=>saveKey(document.getElementById('skApiKey').value)}
+                style={{padding:'8px 18px',background:T.green,color:'#fff',border:'none',
+                  borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+                Save &amp; Generate
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!aiReport && !loading && !error && !showKeyPrompt && (
           <div style={{textAlign:'center',padding:'32px 20px',color:T.textSub,
             border:`1px dashed ${T.border}`,borderRadius:8}}>
             <div style={{fontSize:28,marginBottom:8}}>✨</div>
@@ -575,7 +632,8 @@ export default function BusinessInsights({ sheets }) {
               Ready to generate your business narrative
             </div>
             <div style={{fontSize:12,marginBottom:16}}>
-              Click the button above to have Claude analyse the data and write a structured report covering production trends, account health, concentration risk and recommended actions.
+              Claude will analyse the data and write a structured report covering production trends,
+              account health, concentration risk and recommended actions.
             </div>
             <button onClick={generateReport}
               style={{padding:'9px 22px',background:T.green,color:'#fff',border:'none',
