@@ -334,8 +334,7 @@ export default function BusinessInsights({ sheets }) {
         throw new Error(err?.error?.message || `Server error ${res.status}`);
       }
       const data = await res.json();
-      const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('
-') || '';
+      const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n') || '';
       if (!text) throw new Error('Empty response — try again');
       setAiReport(text);
     } catch(e) {
